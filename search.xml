@@ -84,47 +84,185 @@
       </tags>
   </entry>
   <entry>
-    <title>N+1 Query Problem</title>
-    <url>/2024/07/17/n-plus-one-problem/</url>
-    <content><![CDATA[<h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>最近剛從 NET 6 跳來 Rails，免不了要踩到一些新手必踩的坑。像是這個 N+1 查詢問題就是很常見的坑…</p>
-<p>尤其對我這個用 EF 習慣的人，跳到 ActiveRecord 真的是各種不適應。不過不是不好用的不適應，而是那種方便到很沒有安全感的那種便利ＸＤ</p>
-<h1 id="問題描述"><a href="#問題描述" class="headerlink" title="問題描述"></a>問題描述</h1><blockquote>
-<p>假設你有一個 Customer 和他們的 Order 資料表。當你查詢 Customer 資料時，如果每個 Customer 都有多個 Order，而你同時查詢這些 Order，就會發生 N+1 的查詢問題。</p>
+    <title>Message Queue 簡單介紹與比較</title>
+    <url>/2023/11/25/message-queue-introduce/</url>
+    <content><![CDATA[<h1 id="Message-Queue"><a href="#Message-Queue" class="headerlink" title="Message Queue"></a>Message Queue</h1><blockquote>
+<p>Message Queue 訊息佇列，既然資料結構如其名是 Queue，那麼 FIFO 先進先出的概念就得先了解。存放於 Queue 中的即是 Message。</p>
 </blockquote>
-<p>所以當你執行的一個查詢，實際上會有下面兩個動作：</p>
+<p>主要用途在於提供 <code>不同Process</code> 、 <code>不同Thread</code> 或是在微服務中各個 Service 之間的<strong>訊息溝通</strong>。</p>
+<p><img  
+                     lazyload
+                     src="/images/loading.svg"
+                     data-src="/../Images-Posts/2_MQ_Process.png"
+                      alt="MQ_Process"
+                ></p>
+<h2 id="Application-Intergration"><a href="#Application-Intergration" class="headerlink" title="Application Intergration"></a>Application Intergration</h2><blockquote>
+<p>在一個系統中，一般不會只有一隻程式在運作，而是會有多隻程式同時負責各種不同的任務，而程式之間難免會有互相傳遞資料進行處理的需求，而這類的需求，以下都統稱為 applcation 的整合。</p>
+</blockquote>
+<ul>
+<li><p>File Based Intergration</p>
+<p>Application 根據要處理的任務，產生檔案到特定的路徑。其中任務成功或失敗可以存放到不同 folder 中。而其他接收訊息的 application(或稱 process application) 則是不停監控該路徑有沒有新檔案產生，有則取出檔案進行處理。</p>
+</li>
+<li><p>Shared Database Intergration</p>
 <ol>
-<li>先執行一個查詢來取得所有 Customer。</li>
-<li>然後對<code>每個</code>Customer 執行一個查詢來取得該 Customer 的 Order。</li>
+<li>source application 收到新任務時，將資料寫入 db 中</li>
+<li>process application 監聽的對象從路徑中的檔案換成 database，若有新資料則進行處理</li>
+<li>process application 處理後將狀態寫回 db 中</li>
 </ol>
+</li>
+<li><p>Direct Connection Intergration</p>
+<ol>
+<li>source application 直接傳訊息給 process application</li>
+<li>可能透過 TCP&#x2F;IP 或是 named pipe connection 的方式傳遞資料</li>
+<li>傳遞資訊的資料格式並沒有限制，由連線兩端的 application 自訂，可以是純文字、XML 或 JSON。</li>
+</ol>
+</li>
+<li><p><strong>Asynchronous Message Broker (Message Queue)</strong></p>
+<ol>
+<li>不限傳遞資料格式</li>
+<li>需要額外 message queue middleware 協助，也會被稱作 message broker 或 message bus</li>
+<li>message broker 收到來自 source application 的訊息後，會轉發給 process application，而在這方式中，source application 與 process application 通常又各自被稱為 producer 與 consumer。</li>
+</ol>
+</li>
+</ul>
+<h2 id="特性-優勢"><a href="#特性-優勢" class="headerlink" title="特性 &amp; 優勢"></a>特性 &amp; 優勢</h2><p>Message Queue 最重要的能力在於<strong>非同步</strong>的特性，因為 Producers 發送訊息時不需即刻得到 Response 便可繼續執行其他事情。</p>
+<p>之於非同步的特性伴隨著的優勢便是解耦(Decouple)，開發人員就可以專心負責在屬於自己的區塊進行工作。除此之外 Producer 無需清楚 Consumer 的實際位置(IP Address 等等)，只需要將資料送往 Message Queue 就好，剩下的事情 Message Broker 會根據設定自行處理掉。</p>
+<p>再來高可用性，例如<strong>叢集的高可用性</strong>，當 Master 處於異常狀態時，會轉由 Slave 進行代理繼續提供服務。以確保服務的運行來提供叢集的高可用性。另外則是<strong>資料的高可用性</strong>，當 Message 送至 Queue 但服務發生異常(如 Consumer 消失時)，資料仍然可等到 Consumer 重新上線時再進行推送(Push)或是被拉取(Pull)，直到 Message 被正確消耗後會發出 Ack (Acknowledgement) 確認通知之後 Message 則會消失。</p>
+<p>最後則是 Scaling 擴展，如果突然遭遇大的流量，此時 queue 就提供了一個 buffer 的功能，能夠緩衝尖峰流量，在資源固定的情況下，能夠處理更多的任務，以時間換取資源！ 但有時訊息可能真的太多，產生的速度快於消耗的速度，或是你無法接受太長的 latency，此時 consumer process 就可以隨時增加多個，不會有衝突的風險</p>
+<p>另外，先進先出的佇列資料結構也直接確保了資料的有序性。</p>
+<h2 id="Use-Case"><a href="#Use-Case" class="headerlink" title="Use Case"></a>Use Case</h2><ul>
+<li><p><strong>延遲問題不重要的工作</strong></p>
+<p>寄送郵件這類工作，使用者可以接受信晚個幾秒，幾十秒甚至幾分鐘到時。意即資料不是由使用者寫入，使用者也不曉得資料何時應該要出現，延遲問題就不是那麼重要。</p>
+</li>
+<li><p><strong>大量運算的工作</strong></p>
+<p>比如說 image resizing 或是 video encoding 這類 CPU intensive 的工作，一來是使用者上傳完圖片影片，可能不需要等到這類都做完了你才跟他說 ok，二來是你也不會想讓這類工作 block 住或拖垮你的 web server 的效能．</p>
+</li>
+<li><p><strong>無法控制的工作</strong></p>
+<p>當你的工作需要協調許多資源才能完成時，有機會因為其中一個資源負載過重因而造成整個工作變得極度緩慢，尤其資源是外部的，所以你無法控制的時候。</p>
+</li>
+</ul>
+<h2 id="Kafka-與-RabbitMQ-的抉擇"><a href="#Kafka-與-RabbitMQ-的抉擇" class="headerlink" title="Kafka 與 RabbitMQ 的抉擇"></a>Kafka 與 RabbitMQ 的抉擇</h2><p>比較兩者之前應該先了解 Message Queue 分成兩種：</p>
+<ol>
+<li>Memory Based</li>
+<li>Log Based</li>
+</ol>
+<ul>
+<li><p><strong>Memory Based (RabbitMQ)</strong></p>
+<ul>
+<li>Message 是<strong>存放於 Memory</strong></li>
+<li>Consumer 發出 Ack(Acknowledgement) 確認 Message 取得後 Broker 則會直接刪除 Message</li>
+<li>Message 傳送方式是<code>推送(Push)</code></li>
+</ul>
+</li>
+<li><p><strong>Log Based (Kafka)</strong></p>
+<ul>
+<li>Message 進入後會直接<strong>寫到硬碟</strong>上，Consumer 消耗訊息時則是讀取檔案，直到讀到檔案資料的盡頭，接著繼續等候下一次通知。</li>
+<li>Message 傳送方式為<code>拉取(Pull)</code></li>
+</ul>
+</li>
+</ul>
 <blockquote>
-<p>如果有 N 個 Customer，你將會執行 1 + N 個查詢，這會導致效能問題。</p>
+<p>Log Based 的讀寫速度限制則可透過將 topic 的 log 進行分區來進行改善，每個分區(Partition)由一台機器負責，並可獨立讀寫。</p>
 </blockquote>
-<p>簡單來說，N+1 查詢問題就是當你需要多次查詢資料庫才能取得完整資料時，會造成大量不必要的查詢，影響效能。</p>
-<h1 id="解決方法"><a href="#解決方法" class="headerlink" title="解決方法"></a>解決方法</h1><h2 id="includes"><a href="#includes" class="headerlink" title="includes"></a>includes</h2><div class="highlight-container" data-rel="Ruby"><figure class="iseeu highlight ruby"><table><tr><td class="code"><pre><span class="line"><span class="title class_">Customer</span>.includes(<span class="symbol">:orders</span>).all</span><br></pre></td></tr></table></figure></div>
-
-<p>把需要的資料一次撈出來，轉換成 SQL 語法的話就是使用了 IN (‘1’,’2’,’3’) 這樣的方式來一次性預先載入。避免重複向資料庫存取。</p>
-<h2 id="eager-load"><a href="#eager-load" class="headerlink" title="eager_load"></a>eager_load</h2><div class="highlight-container" data-rel="Ruby"><figure class="iseeu highlight ruby"><table><tr><td class="code"><pre><span class="line"><span class="title class_">Customer</span>.eager_load(<span class="symbol">:orders</span>).all</span><br></pre></td></tr></table></figure></div>
-
+<p>了解了兩種基底的 MQ 差異後，接著了解他們兩者特性上的差異。</p>
+<p>先以簡易的比較表概括：</p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>RabbitMQ</th>
+<th>Kafka</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Load Balancing</td>
+<td>Yes</td>
+<td>Yes, but limited</td>
+</tr>
+<tr>
+<td>Fan-out</td>
+<td>Yes, through exchange binding</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Persistence</td>
+<td>Yes, through configuration</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Inorder delivery</td>
+<td>Yes, conditionally</td>
+<td>yes, per partition</td>
+</tr>
+</tbody></table>
+<ul>
+<li><p><code>Load Balancing(負載平衡)</code></p>
+<ul>
+<li><p><strong>Memory based</strong></p>
+<p>自然地 support 了 load balancing，當有 message 時， broker 輪流地向跟他有建立連結的 consumer 推送信息，就達成了 load balancing 的效果， 越多 consumer，就可以平行處理越多的工作。</p>
+</li>
+<li><p><strong>Log based</strong></p>
+<p>需透過方才提到的 Partition 方法來達成 load balancing。<br>例如一個 topic，並且將此 topic 的 partition 分成三份，此時就可以 assign 三個 consumer 給他。感覺上像是一個 topic 的 message 被提供給三個 consumer 拉取。但實際上則是每個 partition 對應到一個 consumer，便實現了平行處理，意即達到負載平衡。</p>
+</li>
+</ul>
+</li>
+<li><p><code>Fan-Out(扇形發送)</code></p>
+<ul>
+<li><p><strong>Memory based</strong></p>
+<p>需要透過額外的設計才能達成，透過 AMQP 協議的 exchange binding 可以實現 pub-sub。</p>
+</li>
+<li><p><strong>Log based</strong></p>
+<p>本身即為 fan-out，每個 consumer 對 log 檔案想讀哪就讀哪，想重複讀幾次就讀幾次</p>
+</li>
+</ul>
+</li>
+<li><p><code>Persistence(持續性)</code></p>
+<ul>
+<li><p><strong>Memory based</strong></p>
+<p>可透過設置將 Message 寫入硬碟作為 Backup 時使用，但僅保存到 Consumer 成功消耗之前。</p>
+</li>
+<li><p><strong>Log based</strong></p>
+<p>每個 message 都會寫入硬碟，除非刪掉它，否則會一直存在。</p>
+</li>
+</ul>
+</li>
+<li><p><code>Inorder delivery(有序發送)</code></p>
+<ul>
+<li><p><strong>Memory based</strong></p>
+<p>無法保證 message 一個一個按照順序的被處理，除非每一個 topic 只有一個 consumer。</p>
+</li>
+<li><p><strong>Log based</strong></p>
+<p>每個 partition 上的 message，一定是被 consumer 有序讀取，但不同 partition 之間就沒有順序的保證，他們理論上是各自獨立的。</p>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="最終選擇誰"><a href="#最終選擇誰" class="headerlink" title="最終選擇誰"></a>最終選擇誰</h2><p>需考慮下列三點</p>
 <ol>
-<li>eager_load 強制使用 LEFT OUTER JOIN 來載入關聯資料。在一個查詢中同時載入主要資料和關聯資料。</li>
-<li>適合在需要對關聯資料進行條件篩選或排序時使用。</li>
+<li><p>資料是否需要被保存?</p>
+<ul>
+<li>需要保存鐵定是選擇 log based 的 MQ，也就是 Kafka。</li>
+</ul>
+</li>
+<li><p>資料有序性是否重要?</p>
+<ul>
+<li>針對系統開發的面向判斷是否需要維持資料的有序性，如果需要的話則需要選擇 Log Based。但這也僅限於同一個 Partition，若不同的話則無法保證順序。</li>
+</ul>
+</li>
+<li><p>工作耗損是否昂貴?</p>
+<ul>
+<li>log based 受限於需要多個 partition 來實現負載平衡來提升讀寫速度，建設上較為昂貴。</li>
+<li>同個 Partition 只要 Message 過多容易消耗更多時間，最後造成堵塞。</li>
+</ul>
+</li>
 </ol>
-<h2 id="preload"><a href="#preload" class="headerlink" title="preload"></a>preload</h2><div class="highlight-container" data-rel="Ruby"><figure class="iseeu highlight ruby"><table><tr><td class="code"><pre><span class="line"><span class="title class_">Customer</span>.preload(<span class="symbol">:orders</span>).all</span><br></pre></td></tr></table></figure></div>
-
-<p>preload 強制使用多次查詢來載入關聯資料。它會先查詢主要資料，再查詢關聯資料，這樣可以避免 JOIN 查詢的開銷。<br>適合在不需要對關聯資料進行條件篩選時使用。</p>
-<p>上述提到的<code>多次查詢</code> 是會轉換成下面這樣的 SQL 語法：</p>
-<div class="highlight-container" data-rel="Sql"><figure class="iseeu highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="comment">-- 查詢顧客</span></span><br><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> customers;</span><br><span class="line"><span class="comment">-- 查詢所有相關顧客的訂單</span></span><br><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> orders <span class="keyword">WHERE</span> orders.customer_id <span class="keyword">IN</span> (<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, ...);</span><br></pre></td></tr></table></figure></div>
-
-<h1 id="總結"><a href="#總結" class="headerlink" title="總結"></a>總結</h1><p>一般來說都是直接選擇使用<code>includes</code>，因為 includes 會選擇最優的查詢策略。它會根據上下文決定是使用單獨查詢還是 JOIN 查詢。</p>
-<p>當只讀取資料而沒有條件篩選時，通常會進行兩次查詢（preload）。</p>
-<p>當涉及條件篩選並需要 JOIN 查詢時，它會自動使用 LEFT OUTER JOIN（eager_load）。</p>
 ]]></content>
       <categories>
-        <category>RubyOnRails</category>
+        <category>Basic</category>
       </categories>
       <tags>
-        <tag>RubyOnRails</tag>
-        <tag>ActiveRecord</tag>
+        <tag>MicroService</tag>
+        <tag>MessageQueue</tag>
       </tags>
   </entry>
   <entry>
@@ -319,193 +457,118 @@
       </tags>
   </entry>
   <entry>
-    <title>Message Queue 簡單介紹與比較</title>
-    <url>/2023/11/25/message-queue-introduce/</url>
-    <content><![CDATA[<h1 id="Message-Queue"><a href="#Message-Queue" class="headerlink" title="Message Queue"></a>Message Queue</h1><blockquote>
-<p>Message Queue 訊息佇列，既然資料結構如其名是 Queue，那麼 FIFO 先進先出的概念就得先了解。存放於 Queue 中的即是 Message。</p>
+    <title>N+1 Query Problem</title>
+    <url>/2024/07/17/n-plus-one-problem/</url>
+    <content><![CDATA[<h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>最近剛從 NET 6 跳來 Rails，免不了要踩到一些新手必踩的坑。像是這個 N+1 查詢問題就是很常見的坑…</p>
+<p>尤其對我這個用 EF 習慣的人，跳到 ActiveRecord 真的是各種不適應。不過不是不好用的不適應，而是那種方便到很沒有安全感的那種便利ＸＤ</p>
+<h1 id="問題描述"><a href="#問題描述" class="headerlink" title="問題描述"></a>問題描述</h1><blockquote>
+<p>假設你有一個 Customer 和他們的 Order 資料表。當你查詢 Customer 資料時，如果每個 Customer 都有多個 Order，而你同時查詢這些 Order，就會發生 N+1 的查詢問題。</p>
 </blockquote>
-<p>主要用途在於提供 <code>不同Process</code> 、 <code>不同Thread</code> 或是在微服務中各個 Service 之間的<strong>訊息溝通</strong>。</p>
-<p><img  
-                     lazyload
-                     src="/images/loading.svg"
-                     data-src="/../Images-Posts/2_MQ_Process.png"
-                      alt="MQ_Process"
-                ></p>
-<h2 id="Application-Intergration"><a href="#Application-Intergration" class="headerlink" title="Application Intergration"></a>Application Intergration</h2><blockquote>
-<p>在一個系統中，一般不會只有一隻程式在運作，而是會有多隻程式同時負責各種不同的任務，而程式之間難免會有互相傳遞資料進行處理的需求，而這類的需求，以下都統稱為 applcation 的整合。</p>
-</blockquote>
-<ul>
-<li><p>File Based Intergration</p>
-<p>Application 根據要處理的任務，產生檔案到特定的路徑。其中任務成功或失敗可以存放到不同 folder 中。而其他接收訊息的 application(或稱 process application) 則是不停監控該路徑有沒有新檔案產生，有則取出檔案進行處理。</p>
-</li>
-<li><p>Shared Database Intergration</p>
+<p>所以當你執行的一個查詢，實際上會有下面兩個動作：</p>
 <ol>
-<li>source application 收到新任務時，將資料寫入 db 中</li>
-<li>process application 監聽的對象從路徑中的檔案換成 database，若有新資料則進行處理</li>
-<li>process application 處理後將狀態寫回 db 中</li>
+<li>先執行一個查詢來取得所有 Customer。</li>
+<li>然後對<code>每個</code>Customer 執行一個查詢來取得該 Customer 的 Order。</li>
 </ol>
-</li>
-<li><p>Direct Connection Intergration</p>
-<ol>
-<li>source application 直接傳訊息給 process application</li>
-<li>可能透過 TCP&#x2F;IP 或是 named pipe connection 的方式傳遞資料</li>
-<li>傳遞資訊的資料格式並沒有限制，由連線兩端的 application 自訂，可以是純文字、XML 或 JSON。</li>
-</ol>
-</li>
-<li><p><strong>Asynchronous Message Broker (Message Queue)</strong></p>
-<ol>
-<li>不限傳遞資料格式</li>
-<li>需要額外 message queue middleware 協助，也會被稱作 message broker 或 message bus</li>
-<li>message broker 收到來自 source application 的訊息後，會轉發給 process application，而在這方式中，source application 與 process application 通常又各自被稱為 producer 與 consumer。</li>
-</ol>
-</li>
-</ul>
-<h2 id="特性-優勢"><a href="#特性-優勢" class="headerlink" title="特性 &amp; 優勢"></a>特性 &amp; 優勢</h2><p>Message Queue 最重要的能力在於<strong>非同步</strong>的特性，因為 Producers 發送訊息時不需即刻得到 Response 便可繼續執行其他事情。</p>
-<p>之於非同步的特性伴隨著的優勢便是解耦(Decouple)，開發人員就可以專心負責在屬於自己的區塊進行工作。除此之外 Producer 無需清楚 Consumer 的實際位置(IP Address 等等)，只需要將資料送往 Message Queue 就好，剩下的事情 Message Broker 會根據設定自行處理掉。</p>
-<p>再來高可用性，例如<strong>叢集的高可用性</strong>，當 Master 處於異常狀態時，會轉由 Slave 進行代理繼續提供服務。以確保服務的運行來提供叢集的高可用性。另外則是<strong>資料的高可用性</strong>，當 Message 送至 Queue 但服務發生異常(如 Consumer 消失時)，資料仍然可等到 Consumer 重新上線時再進行推送(Push)或是被拉取(Pull)，直到 Message 被正確消耗後會發出 Ack (Acknowledgement) 確認通知之後 Message 則會消失。</p>
-<p>最後則是 Scaling 擴展，如果突然遭遇大的流量，此時 queue 就提供了一個 buffer 的功能，能夠緩衝尖峰流量，在資源固定的情況下，能夠處理更多的任務，以時間換取資源！ 但有時訊息可能真的太多，產生的速度快於消耗的速度，或是你無法接受太長的 latency，此時 consumer process 就可以隨時增加多個，不會有衝突的風險</p>
-<p>另外，先進先出的佇列資料結構也直接確保了資料的有序性。</p>
-<h2 id="Use-Case"><a href="#Use-Case" class="headerlink" title="Use Case"></a>Use Case</h2><ul>
-<li><p><strong>延遲問題不重要的工作</strong></p>
-<p>寄送郵件這類工作，使用者可以接受信晚個幾秒，幾十秒甚至幾分鐘到時。意即資料不是由使用者寫入，使用者也不曉得資料何時應該要出現，延遲問題就不是那麼重要。</p>
-</li>
-<li><p><strong>大量運算的工作</strong></p>
-<p>比如說 image resizing 或是 video encoding 這類 CPU intensive 的工作，一來是使用者上傳完圖片影片，可能不需要等到這類都做完了你才跟他說 ok，二來是你也不會想讓這類工作 block 住或拖垮你的 web server 的效能．</p>
-</li>
-<li><p><strong>無法控制的工作</strong></p>
-<p>當你的工作需要協調許多資源才能完成時，有機會因為其中一個資源負載過重因而造成整個工作變得極度緩慢，尤其資源是外部的，所以你無法控制的時候。</p>
-</li>
-</ul>
-<h2 id="Kafka-與-RabbitMQ-的抉擇"><a href="#Kafka-與-RabbitMQ-的抉擇" class="headerlink" title="Kafka 與 RabbitMQ 的抉擇"></a>Kafka 與 RabbitMQ 的抉擇</h2><p>比較兩者之前應該先了解 Message Queue 分成兩種：</p>
-<ol>
-<li>Memory Based</li>
-<li>Log Based</li>
-</ol>
-<ul>
-<li><p><strong>Memory Based (RabbitMQ)</strong></p>
-<ul>
-<li>Message 是<strong>存放於 Memory</strong></li>
-<li>Consumer 發出 Ack(Acknowledgement) 確認 Message 取得後 Broker 則會直接刪除 Message</li>
-<li>Message 傳送方式是<code>推送(Push)</code></li>
-</ul>
-</li>
-<li><p><strong>Log Based (Kafka)</strong></p>
-<ul>
-<li>Message 進入後會直接<strong>寫到硬碟</strong>上，Consumer 消耗訊息時則是讀取檔案，直到讀到檔案資料的盡頭，接著繼續等候下一次通知。</li>
-<li>Message 傳送方式為<code>拉取(Pull)</code></li>
-</ul>
-</li>
-</ul>
 <blockquote>
-<p>Log Based 的讀寫速度限制則可透過將 topic 的 log 進行分區來進行改善，每個分區(Partition)由一台機器負責，並可獨立讀寫。</p>
+<p>如果有 N 個 Customer，你將會執行 1 + N 個查詢，這會導致效能問題。</p>
 </blockquote>
-<p>了解了兩種基底的 MQ 差異後，接著了解他們兩者特性上的差異。</p>
-<p>先以簡易的比較表概括：</p>
-<table>
-<thead>
-<tr>
-<th>特性</th>
-<th>RabbitMQ</th>
-<th>Kafka</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>Load Balancing</td>
-<td>Yes</td>
-<td>Yes, but limited</td>
-</tr>
-<tr>
-<td>Fan-out</td>
-<td>Yes, through exchange binding</td>
-<td>Yes</td>
-</tr>
-<tr>
-<td>Persistence</td>
-<td>Yes, through configuration</td>
-<td>Yes</td>
-</tr>
-<tr>
-<td>Inorder delivery</td>
-<td>Yes, conditionally</td>
-<td>yes, per partition</td>
-</tr>
-</tbody></table>
-<ul>
-<li><p><code>Load Balancing(負載平衡)</code></p>
-<ul>
-<li><p><strong>Memory based</strong></p>
-<p>自然地 support 了 load balancing，當有 message 時， broker 輪流地向跟他有建立連結的 consumer 推送信息，就達成了 load balancing 的效果， 越多 consumer，就可以平行處理越多的工作。</p>
-</li>
-<li><p><strong>Log based</strong></p>
-<p>需透過方才提到的 Partition 方法來達成 load balancing。<br>例如一個 topic，並且將此 topic 的 partition 分成三份，此時就可以 assign 三個 consumer 給他。感覺上像是一個 topic 的 message 被提供給三個 consumer 拉取。但實際上則是每個 partition 對應到一個 consumer，便實現了平行處理，意即達到負載平衡。</p>
-</li>
-</ul>
-</li>
-<li><p><code>Fan-Out(扇形發送)</code></p>
-<ul>
-<li><p><strong>Memory based</strong></p>
-<p>需要透過額外的設計才能達成，透過 AMQP 協議的 exchange binding 可以實現 pub-sub。</p>
-</li>
-<li><p><strong>Log based</strong></p>
-<p>本身即為 fan-out，每個 consumer 對 log 檔案想讀哪就讀哪，想重複讀幾次就讀幾次</p>
-</li>
-</ul>
-</li>
-<li><p><code>Persistence(持續性)</code></p>
-<ul>
-<li><p><strong>Memory based</strong></p>
-<p>可透過設置將 Message 寫入硬碟作為 Backup 時使用，但僅保存到 Consumer 成功消耗之前。</p>
-</li>
-<li><p><strong>Log based</strong></p>
-<p>每個 message 都會寫入硬碟，除非刪掉它，否則會一直存在。</p>
-</li>
-</ul>
-</li>
-<li><p><code>Inorder delivery(有序發送)</code></p>
-<ul>
-<li><p><strong>Memory based</strong></p>
-<p>無法保證 message 一個一個按照順序的被處理，除非每一個 topic 只有一個 consumer。</p>
-</li>
-<li><p><strong>Log based</strong></p>
-<p>每個 partition 上的 message，一定是被 consumer 有序讀取，但不同 partition 之間就沒有順序的保證，他們理論上是各自獨立的。</p>
-</li>
-</ul>
-</li>
-</ul>
-<h2 id="最終選擇誰"><a href="#最終選擇誰" class="headerlink" title="最終選擇誰"></a>最終選擇誰</h2><p>需考慮下列三點</p>
+<p>簡單來說，N+1 查詢問題就是當你需要多次查詢資料庫才能取得完整資料時，會造成大量不必要的查詢，影響效能。</p>
+<h1 id="解決方法"><a href="#解決方法" class="headerlink" title="解決方法"></a>解決方法</h1><h2 id="includes"><a href="#includes" class="headerlink" title="includes"></a>includes</h2><div class="highlight-container" data-rel="Ruby"><figure class="iseeu highlight ruby"><table><tr><td class="code"><pre><span class="line"><span class="title class_">Customer</span>.includes(<span class="symbol">:orders</span>).all</span><br></pre></td></tr></table></figure></div>
+
+<p>把需要的資料一次撈出來，轉換成 SQL 語法的話就是使用了 IN (‘1’,’2’,’3’) 這樣的方式來一次性預先載入。避免重複向資料庫存取。</p>
+<h2 id="eager-load"><a href="#eager-load" class="headerlink" title="eager_load"></a>eager_load</h2><div class="highlight-container" data-rel="Ruby"><figure class="iseeu highlight ruby"><table><tr><td class="code"><pre><span class="line"><span class="title class_">Customer</span>.eager_load(<span class="symbol">:orders</span>).all</span><br></pre></td></tr></table></figure></div>
+
 <ol>
-<li><p>資料是否需要被保存?</p>
-<ul>
-<li>需要保存鐵定是選擇 log based 的 MQ，也就是 Kafka。</li>
-</ul>
-</li>
-<li><p>資料有序性是否重要?</p>
-<ul>
-<li>針對系統開發的面向判斷是否需要維持資料的有序性，如果需要的話則需要選擇 Log Based。但這也僅限於同一個 Partition，若不同的話則無法保證順序。</li>
-</ul>
-</li>
-<li><p>工作耗損是否昂貴?</p>
-<ul>
-<li>log based 受限於需要多個 partition 來實現負載平衡來提升讀寫速度，建設上較為昂貴。</li>
-<li>同個 Partition 只要 Message 過多容易消耗更多時間，最後造成堵塞。</li>
-</ul>
-</li>
+<li>eager_load 強制使用 LEFT OUTER JOIN 來載入關聯資料。在一個查詢中同時載入主要資料和關聯資料。</li>
+<li>適合在需要對關聯資料進行條件篩選或排序時使用。</li>
 </ol>
+<h2 id="preload"><a href="#preload" class="headerlink" title="preload"></a>preload</h2><div class="highlight-container" data-rel="Ruby"><figure class="iseeu highlight ruby"><table><tr><td class="code"><pre><span class="line"><span class="title class_">Customer</span>.preload(<span class="symbol">:orders</span>).all</span><br></pre></td></tr></table></figure></div>
+
+<p>preload 強制使用多次查詢來載入關聯資料。它會先查詢主要資料，再查詢關聯資料，這樣可以避免 JOIN 查詢的開銷。<br>適合在不需要對關聯資料進行條件篩選時使用。</p>
+<p>上述提到的<code>多次查詢</code> 是會轉換成下面這樣的 SQL 語法：</p>
+<div class="highlight-container" data-rel="Sql"><figure class="iseeu highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="comment">-- 查詢顧客</span></span><br><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> customers;</span><br><span class="line"><span class="comment">-- 查詢所有相關顧客的訂單</span></span><br><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> orders <span class="keyword">WHERE</span> orders.customer_id <span class="keyword">IN</span> (<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, ...);</span><br></pre></td></tr></table></figure></div>
+
+<h1 id="總結"><a href="#總結" class="headerlink" title="總結"></a>總結</h1><p>一般來說都是直接選擇使用<code>includes</code>，因為 includes 會選擇最優的查詢策略。它會根據上下文決定是使用單獨查詢還是 JOIN 查詢。</p>
+<p>當只讀取資料而沒有條件篩選時，通常會進行兩次查詢（preload）。</p>
+<p>當涉及條件篩選並需要 JOIN 查詢時，它會自動使用 LEFT OUTER JOIN（eager_load）。</p>
 ]]></content>
       <categories>
-        <category>Basic</category>
+        <category>RubyOnRails</category>
       </categories>
       <tags>
-        <tag>MicroService</tag>
-        <tag>MessageQueue</tag>
+        <tag>RubyOnRails</tag>
+        <tag>ActiveRecord</tag>
       </tags>
   </entry>
   <entry>
     <title>使用 ActiveRecord 時遭遇 only_full_group_by 的錯誤</title>
     <url>/2024/08/02/only-full-groupby-problem/</url>
-    <content><![CDATA[<h1 id="Only-Full-Group-By-錯誤"><a href="#Only-Full-Group-By-錯誤" class="headerlink" title="Only_Full_Group_By 錯誤"></a>Only_Full_Group_By 錯誤</h1><p>預設 MySql 5.7 以上都會自己預設開啟，開啟這個設定的目的主要是避免語法太過簡陋。</p>
-<p>舉例來說就是明明 select 了全部的欄位，在做 group by 的時候卻只有部分欄位。</p>
-<h2 id="錯誤狀況"><a href="#錯誤狀況" class="headerlink" title="錯誤狀況"></a>錯誤狀況</h2><p><img  
+    <content><![CDATA[<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>MySql 版本 5.7 以上都會自己預設開啟這個 <code>ONLY_FULL_GROUP_BY</code>。這個設定的目的主要是提高 SQL 查詢的準確性和一致性，避免導致一些人為疏失或其他預期外的錯誤發生。</p>
+<p>舉例來說就是明明 SELECT 了全部的欄位，在做 GROUP BY 的時候卻只有部分欄位，其實是不符合 SQL 的標準。</p>
+<h2 id="這個設定要防止什麼？"><a href="#這個設定要防止什麼？" class="headerlink" title="這個設定要防止什麼？"></a>這個設定要防止什麼？</h2><blockquote>
+<p>防止非預期的結果</p>
+</blockquote>
+<p>假設我們有一個名為<code>employees</code>的表，資料如下：</p>
+<table>
+<thead>
+<tr>
+<th>id</th>
+<th>name</th>
+<th>department</th>
+<th>salary</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Alice</td>
+<td>Sales</td>
+<td>50000</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Bob</td>
+<td>Sales</td>
+<td>60000</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Carol</td>
+<td>HR</td>
+<td>55000</td>
+</tr>
+<tr>
+<td>4</td>
+<td>David</td>
+<td>HR</td>
+<td>52000</td>
+</tr>
+</tbody></table>
+<p>現在，考慮以下查詢：</p>
+<div class="highlight-container" data-rel="Sql"><figure class="iseeu highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> department, name, <span class="built_in">AVG</span>(salary)</span><br><span class="line"><span class="keyword">FROM</span> employees</span><br><span class="line"><span class="keyword">GROUP</span> <span class="keyword">BY</span> department;</span><br></pre></td></tr></table></figure></div>
+
+<p>在沒有 ONLY_FULL_GROUP_BY 模式的情況下，這個查詢可能會執行，但結果是不確定的。為什麼？</p>
+<ol>
+<li><code>department</code>列在 GROUP BY 子句中，所以沒問題。</li>
+<li><code>AVG(salary)</code>是一個聚合函數，也沒問題。</li>
+<li>但<code>name</code>列既不在 GROUP BY 子句中，也不是聚合函數的一部分。</li>
+</ol>
+<p>這時候問題來了</p>
+<blockquote>
+<p>如果你要取用<code>name</code>，那資料庫應該返回哪個<code>name</code>？</p>
+</blockquote>
+<p>啟用 ONLY_FULL_GROUP_BY 後，MySQL 會拒絕執行這個查詢，並給出一個錯誤，提示<code>name</code>列應該要麼包含在 GROUP BY 子句中，要麼使用聚合函數。</p>
+<p>一個正確的查詢可能是：</p>
+<div class="highlight-container" data-rel="Sql"><figure class="iseeu highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> department, GROUP_CONCAT(name), <span class="built_in">AVG</span>(salary)</span><br><span class="line"><span class="keyword">FROM</span> employees</span><br><span class="line"><span class="keyword">GROUP</span> <span class="keyword">BY</span> department;</span><br></pre></td></tr></table></figure></div>
+
+<p>或者：</p>
+<div class="highlight-container" data-rel="Sql"><figure class="iseeu highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> department, <span class="built_in">AVG</span>(salary)</span><br><span class="line"><span class="keyword">FROM</span> employees</span><br><span class="line"><span class="keyword">GROUP</span> <span class="keyword">BY</span> department;</span><br></pre></td></tr></table></figure></div>
+
+<p>這樣，查詢結果就是明確和可預測的，避免了可能的歧義和錯誤。</p>
+<p>通過強制執行這種規則，ONLY_FULL_GROUP_BY 模式幫助開發者寫出更清晰、更可靠的 SQL 查詢，減少了因不明確的 GROUP BY 操作而導致的潛在錯誤。</p>
+<h2 id="如何解決？"><a href="#如何解決？" class="headerlink" title="如何解決？"></a>如何解決？</h2><p>好了，廢話這麼多，該進入正題了。</p>
+<p>除了把語法通通修好的方法外，我們可能需要的是趕快解決這問題，並且可以繼續向下開發的解決辦法。</p>
+<p>其實就把這設定給<code>關</code>了就行了</p>
+<h2 id="錯誤追蹤"><a href="#錯誤追蹤" class="headerlink" title="錯誤追蹤"></a>錯誤追蹤</h2><p><img  
                      lazyload
                      src="/images/loading.svg"
                      data-src="/../Images-Posts/only-full-group-by-problem/error.png"
@@ -522,7 +585,7 @@
                       alt="error"
                 ></p>
 <p>可以看到確實出現了 <code>ONLY_FULL_GROUP_BY</code> 的設定，也就是這個設定導致很多語法都無法『正常』執行。因此我們需要把它關閉。</p>
-<h2 id="關閉ONLY-FULL-GROUP-BY步驟"><a href="#關閉ONLY-FULL-GROUP-BY步驟" class="headerlink" title="關閉ONLY_FULL_GROUP_BY步驟"></a>關閉<code>ONLY_FULL_GROUP_BY</code>步驟</h2><p>如果是 homebrew 安裝的 <a class="link"   href="mailto:&#x6d;&#121;&#115;&#x71;&#x6c;&#x40;&#53;&#46;&#55;" >&#x6d;&#121;&#115;&#x71;&#x6c;&#x40;&#53;&#46;&#55; <i class="fa-regular fa-arrow-up-right-from-square fa-sm"></i></a> 路徑，需編輯<code>/opt/homebrew/etc/my.cnf</code> 這個設定檔。並在裡面加入你需要開啟的 sql_mode。否則用下語法的方式每次重啟 mysql 都會恢復到預設設定。</p>
+<h2 id="關閉ONLY-FULL-GROUP-BY"><a href="#關閉ONLY-FULL-GROUP-BY" class="headerlink" title="關閉ONLY_FULL_GROUP_BY"></a>關閉<code>ONLY_FULL_GROUP_BY</code></h2><p>如果是 homebrew 安裝的 <a class="link"   href="mailto:&#109;&#121;&#115;&#x71;&#x6c;&#64;&#53;&#46;&#55;" >&#109;&#121;&#115;&#x71;&#x6c;&#64;&#53;&#46;&#55; <i class="fa-regular fa-arrow-up-right-from-square fa-sm"></i></a> 路徑，需編輯<code>/opt/homebrew/etc/my.cnf</code> 這個設定檔。並在裡面加入你需要開啟的 sql_mode。否則用下語法的方式每次重啟 mysql 都會恢復到預設設定。</p>
 <p>準備把下面這段設定貼到 config 中</p>
 <blockquote>
 <p><code>sql_mode = &quot;STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION”</code></p>
