@@ -457,50 +457,6 @@
       </tags>
   </entry>
   <entry>
-    <title>N+1 Query Problem</title>
-    <url>/2024/07/17/n-plus-one-problem/</url>
-    <content><![CDATA[<h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>最近剛從 NET 6 跳來 Rails，免不了要踩到一些新手必踩的坑。像是這個 N+1 查詢問題就是很常見的坑…</p>
-<p>尤其對我這個用 EF 習慣的人，跳到 ActiveRecord 真的是各種不適應。不過不是不好用的不適應，而是那種方便到很沒有安全感的那種便利ＸＤ</p>
-<h1 id="問題描述"><a href="#問題描述" class="headerlink" title="問題描述"></a>問題描述</h1><blockquote>
-<p>假設你有一個 Customer 和他們的 Order 資料表。當你查詢 Customer 資料時，如果每個 Customer 都有多個 Order，而你同時查詢這些 Order，就會發生 N+1 的查詢問題。</p>
-</blockquote>
-<p>所以當你執行的一個查詢，實際上會有下面兩個動作：</p>
-<ol>
-<li>先執行一個查詢來取得所有 Customer。</li>
-<li>然後對<code>每個</code>Customer 執行一個查詢來取得該 Customer 的 Order。</li>
-</ol>
-<blockquote>
-<p>如果有 N 個 Customer，你將會執行 1 + N 個查詢，這會導致效能問題。</p>
-</blockquote>
-<p>簡單來說，N+1 查詢問題就是當你需要多次查詢資料庫才能取得完整資料時，會造成大量不必要的查詢，影響效能。</p>
-<h1 id="解決方法"><a href="#解決方法" class="headerlink" title="解決方法"></a>解決方法</h1><h2 id="includes"><a href="#includes" class="headerlink" title="includes"></a>includes</h2><div class="code-container" data-rel="Ruby"><figure class="iseeu highlight ruby"><table><tr><td class="code"><pre><span class="line"><span class="title class_">Customer</span>.includes(<span class="symbol">:orders</span>).all</span><br></pre></td></tr></table></figure></div>
-
-<p>把需要的資料一次撈出來，轉換成 SQL 語法的話就是使用了 IN (‘1’,’2’,’3’) 這樣的方式來一次性預先載入。避免重複向資料庫存取。</p>
-<h2 id="eager-load"><a href="#eager-load" class="headerlink" title="eager_load"></a>eager_load</h2><div class="code-container" data-rel="Ruby"><figure class="iseeu highlight ruby"><table><tr><td class="code"><pre><span class="line"><span class="title class_">Customer</span>.eager_load(<span class="symbol">:orders</span>).all</span><br></pre></td></tr></table></figure></div>
-
-<ol>
-<li>eager_load 強制使用 LEFT OUTER JOIN 來載入關聯資料。在一個查詢中同時載入主要資料和關聯資料。</li>
-<li>適合在需要對關聯資料進行條件篩選或排序時使用。</li>
-</ol>
-<h2 id="preload"><a href="#preload" class="headerlink" title="preload"></a>preload</h2><div class="code-container" data-rel="Ruby"><figure class="iseeu highlight ruby"><table><tr><td class="code"><pre><span class="line"><span class="title class_">Customer</span>.preload(<span class="symbol">:orders</span>).all</span><br></pre></td></tr></table></figure></div>
-
-<p>preload 強制使用多次查詢來載入關聯資料。它會先查詢主要資料，再查詢關聯資料，這樣可以避免 JOIN 查詢的開銷。<br>適合在不需要對關聯資料進行條件篩選時使用。</p>
-<p>上述提到的<code>多次查詢</code> 是會轉換成下面這樣的 SQL 語法：</p>
-<div class="code-container" data-rel="Sql"><figure class="iseeu highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="comment">-- 查詢顧客</span></span><br><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> customers;</span><br><span class="line"><span class="comment">-- 查詢所有相關顧客的訂單</span></span><br><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> orders <span class="keyword">WHERE</span> orders.customer_id <span class="keyword">IN</span> (<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, ...);</span><br></pre></td></tr></table></figure></div>
-
-<h1 id="總結"><a href="#總結" class="headerlink" title="總結"></a>總結</h1><p>一般來說都是直接選擇使用<code>includes</code>，因為 includes 會選擇最優的查詢策略。它會根據上下文決定是使用單獨查詢還是 JOIN 查詢。</p>
-<p>當只讀取資料而沒有條件篩選時，通常會進行兩次查詢（preload）。</p>
-<p>當涉及條件篩選並需要 JOIN 查詢時，它會自動使用 LEFT OUTER JOIN（eager_load）。</p>
-]]></content>
-      <categories>
-        <category>RubyOnRails</category>
-      </categories>
-      <tags>
-        <tag>RubyOnRails</tag>
-        <tag>ActiveRecord</tag>
-      </tags>
-  </entry>
-  <entry>
     <title>使用 ActiveRecord 時遭遇 only_full_group_by 的錯誤</title>
     <url>/2024/08/02/only-full-groupby-problem/</url>
     <content><![CDATA[<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>MySql 版本 5.7 以上都會自己預設開啟這個 <code>ONLY_FULL_GROUP_BY</code>。這個設定的目的主要是提高 SQL 查詢的準確性和一致性，避免導致一些人為疏失或其他預期外的錯誤發生。</p>
@@ -585,7 +541,7 @@
                       alt="error"
                 ></p>
 <p>可以看到確實出現了 <code>ONLY_FULL_GROUP_BY</code> 的設定，也就是這個設定導致很多語法都無法『正常』執行。因此我們需要把它關閉。</p>
-<h2 id="關閉ONLY-FULL-GROUP-BY"><a href="#關閉ONLY-FULL-GROUP-BY" class="headerlink" title="關閉ONLY_FULL_GROUP_BY"></a>關閉<code>ONLY_FULL_GROUP_BY</code></h2><p>如果是 homebrew 安裝的 <a class="link"   href="mailto:&#109;&#x79;&#115;&#x71;&#108;&#x40;&#53;&#46;&#x37;" >&#109;&#x79;&#115;&#x71;&#108;&#x40;&#53;&#46;&#x37;<i class="fa-solid fa-arrow-up-right ml-[0.2em] font-light align-text-top text-[0.7em] link-icon"></i></a> 路徑，需編輯<code>/opt/homebrew/etc/my.cnf</code> 這個設定檔。並在裡面加入你需要開啟的 sql_mode。否則用下語法的方式每次重啟 mysql 都會恢復到預設設定。</p>
+<h2 id="關閉ONLY-FULL-GROUP-BY"><a href="#關閉ONLY-FULL-GROUP-BY" class="headerlink" title="關閉ONLY_FULL_GROUP_BY"></a>關閉<code>ONLY_FULL_GROUP_BY</code></h2><p>如果是 homebrew 安裝的 <a class="link"   href="mailto:&#x6d;&#x79;&#x73;&#x71;&#108;&#x40;&#53;&#x2e;&#x37;" >&#x6d;&#x79;&#x73;&#x71;&#108;&#x40;&#53;&#x2e;&#x37;<i class="fa-solid fa-arrow-up-right ml-[0.2em] font-light align-text-top text-[0.7em] link-icon"></i></a> 路徑，需編輯<code>/opt/homebrew/etc/my.cnf</code> 這個設定檔。並在裡面加入你需要開啟的 sql_mode。否則用下語法的方式每次重啟 mysql 都會恢復到預設設定。</p>
 <p>準備把下面這段設定貼到 config 中</p>
 <blockquote>
 <p><code>sql_mode = &quot;STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION”</code></p>
@@ -610,6 +566,97 @@
         <tag>RubyOnRails</tag>
         <tag>ActiveRecord</tag>
         <tag>MySql</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>你是真的可以解決問題的工程師，還是只想把卡關掉的 Mr. Meeseeks？</title>
+    <url>/2026/01/13/solve-problem-or-just-meeseeks/</url>
+    <content><![CDATA[<p><img  
+                     lazyload
+                     src="/images/loading.svg"
+                     data-src="/../Images-Posts/solve-problem-or-just-meeseeks/1-mrmeeseeks.jpg"
+                      alt="Rick and Morty"
+                ></p>
+<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>最近接到一場小型的演講邀約，在著手整理十年職涯回顧時，腦中突然浮現《Rick and Morty》的某一集。那集的故事與角色設定，簡直是當代軟體開發職場的縮影。</p>
+<p>在那集裡，只要按下按鈕，就能召喚出一種名為「Mr. Meeseeks」的藍色生物。他們存在的法則很簡單：<strong>解決單一任務，完成後立刻消失</strong>。</p>
+<p>對他們而言，<strong>存在的每一秒都是痛苦，唯一的目標就是把事情做完然後 poof! 消失。</strong></p>
+<p>有個橋段讓我最印象深刻，Jerry（主角的老爸，是一個超廢角色）想要精進高爾夫球技。Rick 召喚了 Meeseeks 來教他，但 Jerry <strong>拒絕改變</strong>，因為他不想調整錯誤的握桿姿勢，無法拋棄肌肉記憶，只想依賴別人幫他達成結果。可想而知沒有付出又怎麼會有收穫？</p>
+<p>這兩個角色，正好映射出職場上兩種極端的工程師類型：</p>
+<h2 id="第一種：The-Meeseeks-Type（敷衍的執行者）"><a href="#第一種：The-Meeseeks-Type（敷衍的執行者）" class="headerlink" title="第一種：The Meeseeks Type（敷衍的執行者）"></a>第一種：The Meeseeks Type（敷衍的執行者）</h2><p>這類人的眼裡沒有架構，沒有可維護性，他的眼裡，只有 Jira 上的那張卡。</p>
+<p>對他來說，產品的生命週期、使用者體驗、業務是否會賣得好，都不是重點。他的目標從來不是解決長遠問題，而是讓這張卡從 To-Do 移動到 Done。</p>
+<ul>
+<li><strong>特徵：</strong> 極度的任務導向，缺乏面的思考，決策只看當下，不管以後。反正以後都離職了，誰管他</li>
+<li><strong>工作模式：</strong> 為了趕上線，不惜破壞設計模式、疊床架屋，或是直接 hardcode。技術債繼續堆積對他來說無所謂，反正卡解掉就好。</li>
+</ul>
+<p>對 Meeseeks 型工程師而言，<strong>Working Software 只是手段，停止工作才是目的。</strong> 他們不想做額外優化，不想寫文件。這種交差了事的態度，往往是專案技術債的最大來源，也就是折磨你各位千百個夜晚、需要通靈才看得懂的那些破 Code。</p>
+<h2 id="第二種：The-Jerry-Type（拒絕成長的依賴者）"><a href="#第二種：The-Jerry-Type（拒絕成長的依賴者）" class="headerlink" title="第二種：The Jerry Type（拒絕成長的依賴者）"></a>第二種：The Jerry Type（拒絕成長的依賴者）</h2><p>Jerry 講白了，就是團隊裡那個<strong>拒絕思考、拒絕改變</strong>的雷隊友。</p>
+<p>如前所述，Jerry 想要進步，卻<strong>不願意調整姿勢</strong>。當 Meeseeks 給出專業建議時，Jerry 充耳不聞，甚至怪罪工具不好用。</p>
+<p>閉上眼睛想一下，你身邊是否也有具備以下特徵的人？</p>
+<ul>
+<li><strong>拒絕深入問題：</strong> 遇到 Bug，第一反應不是看 Log、Google 或問 AI，而是直接開口問人，期望別人給出直接解答。</li>
+<li><strong>Spoon-feeding（餵養心態）：</strong> 不願閱讀文件，不願理解系統邏輯，總是要人手把手教。永遠處於不求甚解的狀態，下次遇到同樣問題又要再來一次。</li>
+<li><strong>抗拒成長：</strong> 當別人指出問題、或建議更好的架構時，他的反應往往是拒絕改變，可能會說反正現在能用就好。</li>
+</ul>
+<p>Jerry 型人格最大的問題在於<strong>怠惰</strong>。他不願付出相對應的勞動來換取成果，只希望成果從天上掉下來。</p>
+<h2 id="拒絕成為這兩種人"><a href="#拒絕成為這兩種人" class="headerlink" title="拒絕成為這兩種人"></a>拒絕成為這兩種人</h2><p>在職場打滾久了，我們很容易因為疲憊而想當 Mr. Meeseeks，只想交差了事，趕快下班，拒絕當社畜；或是因為怠惰而變成 Jerry，不想動腦，只想依賴別人。</p>
+<p>但撇開公司是否虧待你不談（說實話，如果真的虧待，你早該離開了），<strong>你的技術與態度，最終帶得走的都是你自己的資產。</strong></p>
+<p>回歸正題，一個有價值的工程師<del>社畜</del>之所以有價值，關鍵在哪？</p>
+<ol>
+<li><strong>解決問題的層次：</strong> 我們關注的不只是卡的狀態，而是使用者的痛點是否真的被解決、做的東西有沒有符合產品方向。我們願意多花時間重構、多做檢查，因為我們對<strong>自己的產出品質</strong>負責。</li>
+<li><strong>長遠的思考：</strong> 思考目前的實作有沒有擴充性？能不能順手把架構調整到位？而不只是為了交差了事。</li>
+<li><strong>主動的姿態：</strong> 遇到問題先思考、先查證。願意學習新技術、接受 Code Review，而不是永遠指望別人來幫我們擦屁股。</li>
+</ol>
+<p>這十年來，我學到最重要的一課或許就是：<strong>別當那個只想「消失」的工具人，也別當那個拒絕改變的巨嬰。</strong></p>
+]]></content>
+      <categories>
+        <category>賴瑞碎碎念</category>
+      </categories>
+      <tags>
+        <tag>心法</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>N+1 Query Problem</title>
+    <url>/2024/07/17/n-plus-one-problem/</url>
+    <content><![CDATA[<h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>最近剛從 NET 6 跳來 Rails，免不了要踩到一些新手必踩的坑。像是這個 N+1 查詢問題就是很常見的坑…</p>
+<p>尤其對我這個用 EF 習慣的人，跳到 ActiveRecord 真的是各種不適應。不過不是不好用的不適應，而是那種方便到很沒有安全感的那種便利ＸＤ</p>
+<h1 id="問題描述"><a href="#問題描述" class="headerlink" title="問題描述"></a>問題描述</h1><blockquote>
+<p>假設你有一個 Customer 和他們的 Order 資料表。當你查詢 Customer 資料時，如果每個 Customer 都有多個 Order，而你同時查詢這些 Order，就會發生 N+1 的查詢問題。</p>
+</blockquote>
+<p>所以當你執行的一個查詢，實際上會有下面兩個動作：</p>
+<ol>
+<li>先執行一個查詢來取得所有 Customer。</li>
+<li>然後對<code>每個</code>Customer 執行一個查詢來取得該 Customer 的 Order。</li>
+</ol>
+<blockquote>
+<p>如果有 N 個 Customer，你將會執行 1 + N 個查詢，這會導致效能問題。</p>
+</blockquote>
+<p>簡單來說，N+1 查詢問題就是當你需要多次查詢資料庫才能取得完整資料時，會造成大量不必要的查詢，影響效能。</p>
+<h1 id="解決方法"><a href="#解決方法" class="headerlink" title="解決方法"></a>解決方法</h1><h2 id="includes"><a href="#includes" class="headerlink" title="includes"></a>includes</h2><div class="code-container" data-rel="Ruby"><figure class="iseeu highlight ruby"><table><tr><td class="code"><pre><span class="line"><span class="title class_">Customer</span>.includes(<span class="symbol">:orders</span>).all</span><br></pre></td></tr></table></figure></div>
+
+<p>把需要的資料一次撈出來，轉換成 SQL 語法的話就是使用了 IN (‘1’,’2’,’3’) 這樣的方式來一次性預先載入。避免重複向資料庫存取。</p>
+<h2 id="eager-load"><a href="#eager-load" class="headerlink" title="eager_load"></a>eager_load</h2><div class="code-container" data-rel="Ruby"><figure class="iseeu highlight ruby"><table><tr><td class="code"><pre><span class="line"><span class="title class_">Customer</span>.eager_load(<span class="symbol">:orders</span>).all</span><br></pre></td></tr></table></figure></div>
+
+<ol>
+<li>eager_load 強制使用 LEFT OUTER JOIN 來載入關聯資料。在一個查詢中同時載入主要資料和關聯資料。</li>
+<li>適合在需要對關聯資料進行條件篩選或排序時使用。</li>
+</ol>
+<h2 id="preload"><a href="#preload" class="headerlink" title="preload"></a>preload</h2><div class="code-container" data-rel="Ruby"><figure class="iseeu highlight ruby"><table><tr><td class="code"><pre><span class="line"><span class="title class_">Customer</span>.preload(<span class="symbol">:orders</span>).all</span><br></pre></td></tr></table></figure></div>
+
+<p>preload 強制使用多次查詢來載入關聯資料。它會先查詢主要資料，再查詢關聯資料，這樣可以避免 JOIN 查詢的開銷。<br>適合在不需要對關聯資料進行條件篩選時使用。</p>
+<p>上述提到的<code>多次查詢</code> 是會轉換成下面這樣的 SQL 語法：</p>
+<div class="code-container" data-rel="Sql"><figure class="iseeu highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="comment">-- 查詢顧客</span></span><br><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> customers;</span><br><span class="line"><span class="comment">-- 查詢所有相關顧客的訂單</span></span><br><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> orders <span class="keyword">WHERE</span> orders.customer_id <span class="keyword">IN</span> (<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, ...);</span><br></pre></td></tr></table></figure></div>
+
+<h1 id="總結"><a href="#總結" class="headerlink" title="總結"></a>總結</h1><p>一般來說都是直接選擇使用<code>includes</code>，因為 includes 會選擇最優的查詢策略。它會根據上下文決定是使用單獨查詢還是 JOIN 查詢。</p>
+<p>當只讀取資料而沒有條件篩選時，通常會進行兩次查詢（preload）。</p>
+<p>當涉及條件篩選並需要 JOIN 查詢時，它會自動使用 LEFT OUTER JOIN（eager_load）。</p>
+]]></content>
+      <categories>
+        <category>RubyOnRails</category>
+      </categories>
+      <tags>
+        <tag>RubyOnRails</tag>
+        <tag>ActiveRecord</tag>
       </tags>
   </entry>
 </search>
