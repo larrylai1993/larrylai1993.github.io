@@ -457,14 +457,67 @@
       </tags>
   </entry>
   <entry>
+    <title>人月神話（一）：我們都在焦油坑裡掙扎嗎？</title>
+    <url>/2026/01/23/mythical-man-month-ch1/</url>
+    <content><![CDATA[<p><img  
+                     lazyload
+                     src="/images/loading.svg"
+                     data-src="/../Images-Posts/mythical-man-month/effor-program-product-1.png"
+                      alt="Tar Pit"
+                ></p>
+<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>最近翻 linkedin 剛好看到有人推薦這本書：<strong>《人月神話》（The Mythical Man-Month）</strong>。</p>
+<p>問一問才發現原來這本書是號稱軟體工程界的聖經，所以想了想還是要撥點時間看吧？也許能給現在的自己有些什麼啟發。</p>
+<p>那就開啟了不知道會不會寫完的這本書的讀書心得吧…</p>
+<hr>
+<p>第一章的標題：<strong>焦油坑（The Tar Pit）</strong>。</p>
+<p>作者 Fred Brooks 引用了史前巨獸在焦油坑掙扎的場景：恐龍、猛獁象、劍齒虎，這些強大的生物在焦油中掙扎，越是猛烈，纏得越緊。最後，沒有誰能逃脫。</p>
+<p>但我們是人，我們可能會享受這個掙扎的過程。因為快樂總是伴隨著苦痛，而煩惱即是菩提。我們總在焦油坑裡掙扎，但偶爾，我們也能爬上岸，享受一下陽光。</p>
+<p>而這，就是開發的日常。</p>
+<h2 id="什麼是「程式系統產品」？"><a href="#什麼是「程式系統產品」？" class="headerlink" title="什麼是「程式系統產品」？"></a>什麼是「程式系統產品」？</h2><p>這一章提到了一個很有趣的概念，也是我很喜歡的一張圖（Figure 1.1），解釋了為什麼我們寫一個能跑的「程式」（Program），跟做出一個能賣的「程式系統產品」（Programming Systems Product），所需的成本會有 <strong>9 倍</strong> 的差距。</p>
+<ul>
+<li><strong>Program</strong>：你自己寫爽的，能在你的機器上跑，能在你的腦袋裡運作。成本：1x。</li>
+<li><strong>Programming Product（程式產品）</strong>：要通用化、要測試、要有文件。成本：3x。</li>
+<li><strong>Programming System（程式系統）</strong>：要跟別的元件介接、要遵守介面規範、要整合測試。成本：3x。</li>
+<li><strong>Programming Systems Product（程式系統產品）</strong>：<strong>也就是我們每天在做的事</strong>。既要通用化又要系統化。3x * 3x &#x3D; <strong>9x</strong>。</li>
+</ul>
+<p>很多時候老闆（或是我們自己）都會誤判，以為把一個 Prototype 變成產品很快。別傻了，那個 9 倍的坑就在那裡等著你。</p>
+<h2 id="為什麼我們還在這裡？"><a href="#為什麼我們還在這裡？" class="headerlink" title="為什麼我們還在這裡？"></a>為什麼我們還在這裡？</h2><p>既然是焦油坑，那為什麼我們這群工程師還前仆後繼地跳進去？Brooks 列出了這個職業的 <strong>樂趣（Joys）</strong> 與 <strong>苦惱（Woes）</strong>。</p>
+<h3 id="職業的樂趣"><a href="#職業的樂趣" class="headerlink" title="職業的樂趣"></a>職業的樂趣</h3><ol>
+<li><strong>純粹的創造</strong>：就像上帝創造世界一樣，我們創造事物。</li>
+<li><strong>對他人有用</strong>：做出來的東西是真的有人在用的。</li>
+<li><strong>魔術般的魅力</strong>：看著一行行程式碼變成會動的畫面，那種成就感無可比擬。</li>
+<li><strong>持續學習</strong>：這個領域永遠不會重複，永遠有新東西。（雖然有時候這也是一種這折磨…）</li>
+<li><strong>易於駕馭的介質</strong>：我們的畫布是記憶體，我們的畫筆是鍵盤，我們可以憑空蓋出城堡，不需要磚瓦。</li>
+</ol>
+<h3 id="職業的苦惱"><a href="#職業的苦惱" class="headerlink" title="職業的苦惱"></a>職業的苦惱</h3><ol>
+<li><strong>追求完美</strong>：電腦是無情的，少一個分號就是跑不動。我們必須強迫自己追求完美。</li>
+<li><strong>依賴他人</strong>：你的程式跑不對，可能是 OS 的鍋，可能是 Library 的雷，甚至可能是同事的 API 文件沒寫好（或是根本沒寫）。</li>
+<li><strong>枯燥的除錯</strong>：設計是有趣的，但抓 Bug 是線性的、甚至是指數級的痛苦。</li>
+<li><strong>產品過時</strong>：當你終於把產品做出來，它可能已經過時了。</li>
+</ol>
+<h2 id="結語"><a href="#結語" class="headerlink" title="結語"></a>結語</h2><p>雖然我們常抱怨 Requirements 一直改、在那邊解幾百年前的 Legacy Code、或是為了別人的 Bug 加班到半夜。但說實話，當我們看著系統成功上線，解決了用戶的問題，那種「<strong>我在焦油坑裡存活下來了</strong>」的快感，或許就是讓我們離不開這個行業的原因吧。</p>
+<p>我們都是在焦油坑裡掙扎的巨獸，但偶爾，我們也能爬上岸，享受一下陽光。</p>
+<p>這是我讀完第一章的小小心得，如果你也在焦油坑裡，別忘了，你並不孤單。</p>
+]]></content>
+      <categories>
+        <category>加減讀點書系列</category>
+      </categories>
+      <tags>
+        <tag>人月神話</tag>
+        <tag>讀書心得</tag>
+      </tags>
+  </entry>
+  <entry>
     <title>人月神話（二）：人月就是個謊言</title>
     <url>/2026/01/23/mythical-man-month-ch2/</url>
     <content><![CDATA[<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>這篇作者直接開門見山說：<strong>缺乏合理的時間進度，是造成專案延遲最主要的原因，比其他所有因素加起來的影響還大。</strong></p>
 <p>但這問題會一直發生吧？專案估算過度樂觀時常不是真正的樂觀，而是因為中途發現需求與原先預估的有差異。就有點像是大家以為原先的道路是正確的，但走了一段才發現是死路，這時候只能回頭重走，但回頭重走的時間成本往往會被忽略。</p>
 <p>應該說怎麼可能會預估得到會走錯路？</p>
-<p>針對這個問題，Brooks 點出了一個關鍵心態，正是這個心態讓我們容易忽略掉那些潛在的錯路。</p>
+<p>針對這個問題，作者點出了一個關鍵心態，正是這個心態讓我們容易忽略掉那些潛在的錯路。</p>
 <h2 id="工程師的通病：過度樂觀"><a href="#工程師的通病：過度樂觀" class="headerlink" title="工程師的通病：過度樂觀"></a>工程師的通病：過度樂觀</h2><p>作者很直白的說：<strong>所有的程式設計師都是樂觀主義者</strong>。</p>
-<p>我們總相信「這次一定會順利」、「我剛剛修完最後一個 Bug 了」。結果呢？Bug 總是會用各種你想像不到的方式再冒出來。或者這個流程一定沒問題，結果使用者一看發現不太對勁。</p>
+<p>我們總相信這次一定會順利、我剛剛修完最後一個 Bug 了、應該差不多了、可以上線了之類的鬼話。</p>
+<p><del>就像人生十大錯覺一樣</del></p>
+<p>結果呢？Bug 總是會用各種你想像不到的方式再冒出來。或者這個流程一定沒問題，結果使用者一看發現不太對勁。</p>
 <p>這種樂觀，來自於我們工作的介質太容易駕馭了。寫程式不像蓋房子要搬木頭、不像雕刻要跟石頭對抗。我們只需要鍵盤和螢幕，想法就能直接變成程式碼。這種純思考的創作方式，讓我們以為一切都在掌控之中。</p>
 <p>但問題在於：<strong>我們的思考本身是有缺陷的</strong>。所以 Bug 永遠會存在，而我們的樂觀，往往只是錯覺。</p>
 <p><del>難怪我永遠都會把 ticket 的點數少估</del></p>
@@ -507,57 +560,6 @@
 <p>我們常常在專案延遲的時候，第一個念頭就是「找更多人來幫忙」。但作者告訴我們，這通常只會讓事情更糟。<strong>真正該做的，是重新評估時程、縮減範圍、或是坦然接受延遲。</strong></p>
 <p>人月，終究只是一個神話。我們不應該被這個看似合理的單位所欺騙。所以到底怎樣是好的估算？</p>
 <p>在這章還沒有答案，就繼續看下去吧！</p>
-]]></content>
-      <categories>
-        <category>加減讀點書系列</category>
-      </categories>
-      <tags>
-        <tag>人月神話</tag>
-        <tag>讀書心得</tag>
-      </tags>
-  </entry>
-  <entry>
-    <title>人月神話（一）：我們都在焦油坑裡掙扎嗎？</title>
-    <url>/2026/01/23/mythical-man-month-ch1/</url>
-    <content><![CDATA[<p><img  
-                     lazyload
-                     src="/images/loading.svg"
-                     data-src="/../Images-Posts/mythical-man-month/effor-program-product-1.png"
-                      alt="Tar Pit"
-                ></p>
-<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>最近翻 linkedin 剛好看到有人推薦這本書：<strong>《人月神話》（The Mythical Man-Month）</strong>。</p>
-<p>問一問才發現原來這本書是號稱軟體工程界的聖經，所以想了想還是要撥點時間看吧？也許能給現在的自己有些什麼啟發。</p>
-<p>那就開啟了不知道會不會寫完的這本書的讀書心得吧…</p>
-<hr>
-<p>第一章的標題：<strong>焦油坑（The Tar Pit）</strong>。</p>
-<p>作者 Fred Brooks 引用了史前巨獸在焦油坑掙扎的場景：恐龍、猛獁象、劍齒虎，這些強大的生物在焦油中掙扎，越是猛烈，纏得越緊。最後，沒有誰能逃脫。</p>
-<p>但我們是人，我們可能會享受這個掙扎的過程。因為快樂總是伴隨著苦痛，而煩惱即是菩提。我們總在焦油坑裡掙扎，但偶爾，我們也能爬上岸，享受一下陽光。</p>
-<p>而這，就是開發的日常。</p>
-<h2 id="什麼是「程式系統產品」？"><a href="#什麼是「程式系統產品」？" class="headerlink" title="什麼是「程式系統產品」？"></a>什麼是「程式系統產品」？</h2><p>這一章提到了一個很有趣的概念，也是我很喜歡的一張圖（Figure 1.1），解釋了為什麼我們寫一個能跑的「程式」（Program），跟做出一個能賣的「程式系統產品」（Programming Systems Product），所需的成本會有 <strong>9 倍</strong> 的差距。</p>
-<ul>
-<li><strong>Program</strong>：你自己寫爽的，能在你的機器上跑，能在你的腦袋裡運作。成本：1x。</li>
-<li><strong>Programming Product（程式產品）</strong>：要通用化、要測試、要有文件。成本：3x。</li>
-<li><strong>Programming System（程式系統）</strong>：要跟別的元件介接、要遵守介面規範、要整合測試。成本：3x。</li>
-<li><strong>Programming Systems Product（程式系統產品）</strong>：<strong>也就是我們每天在做的事</strong>。既要通用化又要系統化。3x * 3x &#x3D; <strong>9x</strong>。</li>
-</ul>
-<p>很多時候老闆（或是我們自己）都會誤判，以為把一個 Prototype 變成產品很快。別傻了，那個 9 倍的坑就在那裡等著你。</p>
-<h2 id="為什麼我們還在這裡？"><a href="#為什麼我們還在這裡？" class="headerlink" title="為什麼我們還在這裡？"></a>為什麼我們還在這裡？</h2><p>既然是焦油坑，那為什麼我們這群工程師還前仆後繼地跳進去？Brooks 列出了這個職業的 <strong>樂趣（Joys）</strong> 與 <strong>苦惱（Woes）</strong>。</p>
-<h3 id="職業的樂趣"><a href="#職業的樂趣" class="headerlink" title="職業的樂趣"></a>職業的樂趣</h3><ol>
-<li><strong>純粹的創造</strong>：就像上帝創造世界一樣，我們創造事物。</li>
-<li><strong>對他人有用</strong>：做出來的東西是真的有人在用的。</li>
-<li><strong>魔術般的魅力</strong>：看著一行行程式碼變成會動的畫面，那種成就感無可比擬。</li>
-<li><strong>持續學習</strong>：這個領域永遠不會重複，永遠有新東西。（雖然有時候這也是一種這折磨…）</li>
-<li><strong>易於駕馭的介質</strong>：我們的畫布是記憶體，我們的畫筆是鍵盤，我們可以憑空蓋出城堡，不需要磚瓦。</li>
-</ol>
-<h3 id="職業的苦惱"><a href="#職業的苦惱" class="headerlink" title="職業的苦惱"></a>職業的苦惱</h3><ol>
-<li><strong>追求完美</strong>：電腦是無情的，少一個分號就是跑不動。我們必須強迫自己追求完美。</li>
-<li><strong>依賴他人</strong>：你的程式跑不對，可能是 OS 的鍋，可能是 Library 的雷，甚至可能是同事的 API 文件沒寫好（或是根本沒寫）。</li>
-<li><strong>枯燥的除錯</strong>：設計是有趣的，但抓 Bug 是線性的、甚至是指數級的痛苦。</li>
-<li><strong>產品過時</strong>：當你終於把產品做出來，它可能已經過時了。</li>
-</ol>
-<h2 id="結語"><a href="#結語" class="headerlink" title="結語"></a>結語</h2><p>雖然我們常抱怨 Requirements 一直改、在那邊解幾百年前的 Legacy Code、或是為了別人的 Bug 加班到半夜。但說實話，當我們看著系統成功上線，解決了用戶的問題，那種「<strong>我在焦油坑裡存活下來了</strong>」的快感，或許就是讓我們離不開這個行業的原因吧。</p>
-<p>我們都是在焦油坑裡掙扎的巨獸，但偶爾，我們也能爬上岸，享受一下陽光。</p>
-<p>這是我讀完第一章的小小心得，如果你也在焦油坑裡，別忘了，你並不孤單。</p>
 ]]></content>
       <categories>
         <category>加減讀點書系列</category>
@@ -696,7 +698,7 @@
                       alt="error"
                 ></p>
 <p>可以看到確實出現了 <code>ONLY_FULL_GROUP_BY</code> 的設定，也就是這個設定導致很多語法都無法『正常』執行。因此我們需要把它關閉。</p>
-<h2 id="關閉ONLY-FULL-GROUP-BY"><a href="#關閉ONLY-FULL-GROUP-BY" class="headerlink" title="關閉ONLY_FULL_GROUP_BY"></a>關閉<code>ONLY_FULL_GROUP_BY</code></h2><p>如果是 homebrew 安裝的 <a class="link"   href="mailto:&#109;&#x79;&#115;&#113;&#108;&#x40;&#x35;&#x2e;&#x37;" >&#109;&#x79;&#115;&#113;&#108;&#x40;&#x35;&#x2e;&#x37;<i class="fa-solid fa-arrow-up-right ml-[0.2em] font-light align-text-top text-[0.7em] link-icon"></i></a> 路徑，需編輯<code>/opt/homebrew/etc/my.cnf</code> 這個設定檔。並在裡面加入你需要開啟的 sql_mode。否則用下語法的方式每次重啟 mysql 都會恢復到預設設定。</p>
+<h2 id="關閉ONLY-FULL-GROUP-BY"><a href="#關閉ONLY-FULL-GROUP-BY" class="headerlink" title="關閉ONLY_FULL_GROUP_BY"></a>關閉<code>ONLY_FULL_GROUP_BY</code></h2><p>如果是 homebrew 安裝的 <a class="link"   href="mailto:&#109;&#121;&#115;&#x71;&#108;&#x40;&#x35;&#46;&#x37;" >&#109;&#121;&#115;&#x71;&#108;&#x40;&#x35;&#46;&#x37;<i class="fa-solid fa-arrow-up-right ml-[0.2em] font-light align-text-top text-[0.7em] link-icon"></i></a> 路徑，需編輯<code>/opt/homebrew/etc/my.cnf</code> 這個設定檔。並在裡面加入你需要開啟的 sql_mode。否則用下語法的方式每次重啟 mysql 都會恢復到預設設定。</p>
 <p>準備把下面這段設定貼到 config 中</p>
 <blockquote>
 <p><code>sql_mode = &quot;STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION”</code></p>
