@@ -459,13 +459,20 @@
   <entry>
     <title>人月神話（一）：我們都在焦油坑裡掙扎嗎？</title>
     <url>/2026/01/23/mythical-man-month-ch1/</url>
-    <content><![CDATA[<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>最近翻 linkedin 剛好看到有人推薦這本書：<strong>《人月神話》（The Mythical Man-Month）</strong>。</p>
+    <content><![CDATA[<p><img  
+                     lazyload
+                     src="/images/loading.svg"
+                     data-src="/../Images-Posts/mythical-man-month/effor-program-product-1.png"
+                      alt="Tar Pit"
+                ></p>
+<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>最近翻 linkedin 剛好看到有人推薦這本書：<strong>《人月神話》（The Mythical Man-Month）</strong>。</p>
 <p>問一問才發現原來這本書是號稱軟體工程界的聖經，所以想了想還是要撥點時間看吧？也許能給現在的自己有些什麼啟發。</p>
 <p>那就開啟了不知道會不會寫完的這本書的讀書心得吧…</p>
 <hr>
 <p>第一章的標題：<strong>焦油坑（The Tar Pit）</strong>。</p>
 <p>作者 Fred Brooks 引用了史前巨獸在焦油坑掙扎的場景：恐龍、猛獁象、劍齒虎，這些強大的生物在焦油中掙扎，越是猛烈，纏得越緊。最後，沒有誰能逃脫。</p>
-<p>這多像我們現在的大型軟體開發案啊！不管團隊多強大、工具多先進，專案總是可以把我們黏得死死的。每個人都很驚訝問題怎麼這麼難纏，但當我們深陷其中，就像那些巨獸一樣，動彈不得。</p>
+<p>但我們是人，我們可能會享受這個掙扎的過程。因為快樂總是伴隨著苦痛，而煩惱即是菩提。我們總在焦油坑裡掙扎，但偶爾，我們也能爬上岸，享受一下陽光。</p>
+<p>而這，就是開發的日常。</p>
 <h2 id="什麼是「程式系統產品」？"><a href="#什麼是「程式系統產品」？" class="headerlink" title="什麼是「程式系統產品」？"></a>什麼是「程式系統產品」？</h2><p>這一章提到了一個很有趣的概念，也是我很喜歡的一張圖（Figure 1.1），解釋了為什麼我們寫一個能跑的「程式」（Program），跟做出一個能賣的「程式系統產品」（Programming Systems Product），所需的成本會有 <strong>9 倍</strong> 的差距。</p>
 <ul>
 <li><strong>Program</strong>：你自己寫爽的，能在你的機器上跑，能在你的腦袋裡運作。成本：1x。</li>
@@ -493,12 +500,11 @@
 <p>這是我讀完第一章的小小心得，如果你也在焦油坑裡，別忘了，你並不孤單。</p>
 ]]></content>
       <categories>
-        <category>賴瑞碎碎念</category>
+        <category>加減讀點書系列</category>
       </categories>
       <tags>
         <tag>人月神話</tag>
         <tag>讀書心得</tag>
-        <tag>軟體工程</tag>
       </tags>
   </entry>
   <entry>
@@ -630,7 +636,7 @@
                       alt="error"
                 ></p>
 <p>可以看到確實出現了 <code>ONLY_FULL_GROUP_BY</code> 的設定，也就是這個設定導致很多語法都無法『正常』執行。因此我們需要把它關閉。</p>
-<h2 id="關閉ONLY-FULL-GROUP-BY"><a href="#關閉ONLY-FULL-GROUP-BY" class="headerlink" title="關閉ONLY_FULL_GROUP_BY"></a>關閉<code>ONLY_FULL_GROUP_BY</code></h2><p>如果是 homebrew 安裝的 <a class="link"   href="mailto:&#x6d;&#x79;&#115;&#x71;&#108;&#x40;&#x35;&#46;&#55;" >&#x6d;&#x79;&#115;&#x71;&#108;&#x40;&#x35;&#46;&#55;<i class="fa-solid fa-arrow-up-right ml-[0.2em] font-light align-text-top text-[0.7em] link-icon"></i></a> 路徑，需編輯<code>/opt/homebrew/etc/my.cnf</code> 這個設定檔。並在裡面加入你需要開啟的 sql_mode。否則用下語法的方式每次重啟 mysql 都會恢復到預設設定。</p>
+<h2 id="關閉ONLY-FULL-GROUP-BY"><a href="#關閉ONLY-FULL-GROUP-BY" class="headerlink" title="關閉ONLY_FULL_GROUP_BY"></a>關閉<code>ONLY_FULL_GROUP_BY</code></h2><p>如果是 homebrew 安裝的 <a class="link"   href="mailto:&#109;&#x79;&#115;&#113;&#x6c;&#x40;&#x35;&#x2e;&#55;" >&#109;&#x79;&#115;&#113;&#x6c;&#x40;&#x35;&#x2e;&#55;<i class="fa-solid fa-arrow-up-right ml-[0.2em] font-light align-text-top text-[0.7em] link-icon"></i></a> 路徑，需編輯<code>/opt/homebrew/etc/my.cnf</code> 這個設定檔。並在裡面加入你需要開啟的 sql_mode。否則用下語法的方式每次重啟 mysql 都會恢復到預設設定。</p>
 <p>準備把下面這段設定貼到 config 中</p>
 <blockquote>
 <p><code>sql_mode = &quot;STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION”</code></p>
