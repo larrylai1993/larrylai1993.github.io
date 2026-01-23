@@ -1,6 +1,89 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>如何處理 Kubernetes 無法 Pull 私有鏡像庫的問題?</title>
+    <url>/2024/04/24/k8s-pulling-image-failed/</url>
+    <content><![CDATA[<ul>
+<li><a href="#%E7%A7%81%E6%9C%89%E9%8F%A1%E5%83%8F%E5%BA%AB%E7%84%A1%E6%B3%95%E6%8B%89%E5%8F%96">私有鏡像庫無法拉取</a><ul>
+<li><a href="#docker">Docker</a></li>
+<li><a href="#k8s-containerd">K8S Containerd</a></li>
+<li><a href="#pod-%E5%A4%B1%E6%95%97-images-%E7%84%A1%E6%B3%95%E6%88%90%E5%8A%9F%E6%8B%89%E5%8F%96">POD 失敗, Images 無法成功拉取</a></li>
+</ul>
+</li>
+</ul>
+<h2 id="私有鏡像庫無法拉取"><a href="#私有鏡像庫無法拉取" class="headerlink" title="私有鏡像庫無法拉取"></a>私有鏡像庫無法拉取</h2><p>Private Image Repository 通常會因為不安全的關係而導致無法正常拉取。所以在拉取之前需要先行設定。這件事情分成兩個面向，也因此有兩個地方要進行設定。</p>
+<h3 id="Docker"><a href="#Docker" class="headerlink" title="Docker"></a>Docker</h3><p><strong>透過 docker pull image 來取得 Image</strong></p>
+<ul>
+<li><p>將不信任的鏡像庫加入到信任清單中</p>
+<p>需要先調整 docker 的設定檔，信任這個私有的 Repository。我們可以先進入 <code>/etc/docker</code>。進入後如果沒有 <code>daemon.json</code> 則需要自行建立。</p>
+<div class="code-container" data-rel="Json"><figure class="iseeu highlight json"><table><tr><td class="code"><pre><span class="line"><span class="comment">// IP和PORT自行更換</span></span><br><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;insecure-registries&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="string">&quot;[IP]:[PORT]&quot;</span><span class="punctuation">]</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure></div>
+</li>
+<li><p>調整 docker.service 啟動帶入的參數</p>
+<ul>
+<li><code>sudo vi /usr/lib/systemd/system/docker.service</code></li>
+<li>在 restart&#x3D;always 下方加入 <code>EnvironmentFile=/etc/docker/daemon.json</code></li>
+</ul>
+</li>
+<li><p>重啟 docker.service</p>
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">sudo systemctl daemon-reload</span><br><span class="line">systemctl restart docker.service</span><br><span class="line">systemctl status docker.service</span><br></pre></td></tr></table></figure></div>
+</li>
+<li><p>執行登入</p>
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">sudo docker login [IP:Port] -u [UserName]</span><br></pre></td></tr></table></figure></div>
+</li>
+<li><p>Pull Image</p>
+<div class="code-container" data-rel="Plaintext"><figure class="iseeu highlight plaintext"><table><tr><td class="code"><pre><span class="line">docker pull [IP:Port]/[Image Name]:[tag]</span><br></pre></td></tr></table></figure></div></li>
+</ul>
+<h3 id="K8S-Containerd"><a href="#K8S-Containerd" class="headerlink" title="K8S Containerd"></a>K8S Containerd</h3><p>因為剛才已經利用 docker pull 拉取過 Image。在後續的 yaml 檔中，我們都需要有個認證能夠讓 K8S 使用，而非透過在每一個 Worker node 執行 docker login 。</p>
+<p>在這裡我們使用剛才 docker login 所產生的檔案來建立 K8S 的 Secret File。或不利用檔案而是指定好帳號密碼來產生 Secret File。</p>
+<ul>
+<li><p>產生 secret</p>
+<ol>
+<li>利用 docker login 產生的檔案</li>
+</ol>
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">kubectl create secret generic regcred \</span><br><span class="line">--from-file=.dockerconfigjson=autoConf.json \</span><br><span class="line">--<span class="built_in">type</span>=kubernetes.io/dockerconfigjson</span><br></pre></td></tr></table></figure></div>
+
+<ol start="2">
+<li>自行輸入資訊產生</li>
+</ol>
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">kubectl create secret docker-registry insecure-registry \ --docker-server=[IP:Port] --docker-username=[User Name] \ --docker-password=&#x27;[Password]&#x27; --docker-email=[User Email]</span><br></pre></td></tr></table></figure></div>
+
+<p>可以嘗試使用上面任一種方式產生，或兩種都行。在產生 Secret 後執行下面的語法，在<code>Auth</code>的欄位應該要完全相同。</p>
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">kubectl get secret [Secret Name] --output=&quot;jsonpath=&#123;.data.\.dockerconfigjson&#125;&quot; | base64 --decode</span><br></pre></td></tr></table></figure></div>
+
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line"># decode opaque</span><br><span class="line">kubectl get secrets/mongodb-secret --template=&#x27;&#123;&#123; index .data &quot;填入secret內欄位的名稱&quot; | base64decode&#125;&#125;&#x27;</span><br></pre></td></tr></table></figure></div>
+</li>
+<li><p>產生 secret 之後將其套用進 deploy yaml 中。</p>
+<div class="code-container" data-rel="Yaml"><figure class="iseeu highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">apps/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">dockerdemo-deployment</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">app:</span> <span class="string">uat-example</span></span><br><span class="line">  <span class="attr">replicas:</span> <span class="number">3</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">metadata:</span></span><br><span class="line">      <span class="attr">labels:</span></span><br><span class="line">        <span class="attr">app:</span> <span class="string">uat-example</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">uat-example-api</span></span><br><span class="line">          <span class="attr">image:</span> <span class="number">10.1</span><span class="number">.23</span><span class="number">.49</span><span class="string">:8082/example-api:dev</span></span><br><span class="line">          <span class="attr">imagePullPolicy:</span> <span class="string">IfNotPresent</span></span><br><span class="line">          <span class="attr">ports:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">8034</span></span><br><span class="line">      <span class="attr">imagePullSecrets:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">regcred</span> <span class="comment">#secret name</span></span><br></pre></td></tr></table></figure></div>
+</li>
+<li><p>k8s deploy</p>
+<pre><code> kubectl apply -f [File Name]
+</code></pre>
+</li>
+</ul>
+<h3 id="POD-失敗-Images-無法成功拉取"><a href="#POD-失敗-Images-無法成功拉取" class="headerlink" title="POD 失敗, Images 無法成功拉取"></a>POD 失敗, Images 無法成功拉取</h3><p>這時候可能會遭遇到問題，當你執行 <code>kubectl get pods</code> 的時候會發現沒有任何一個 pod 被啟動成功。再次執行 <code>kubectl describe pods [pod name]</code> 則會看見：</p>
+<blockquote>
+<p>錯誤訊息：http: server gave HTTP response to HTTPS client 的相關錯誤</p>
+</blockquote>
+<p>你可能會好奇，我 docker pull image 都能成功了，為什麼由 k8s 執行 pull 反而就失敗了？</p>
+<p>原因是因為 K8S 是透過使用 Container Runtime Interface（CRI）作為介面與容器執行時引擎（container runtime）進行通信。而在我們這個架構，我們的 CRI 是 Containerd，所以要為 Containerd 加入 Registry 的映射。</p>
+<ol>
+<li><p>進入<code>/etc/containerd</code>，開啟 <code>config.toml</code>，如果沒有則自行建立。</p>
+</li>
+<li><p>在裡面填入</p>
+<div class="code-container" data-rel="Toml"><figure class="iseeu highlight toml"><table><tr><td class="code"><pre><span class="line"><span class="comment"># Config file is parsed as version 1 by default.</span></span><br><span class="line"><span class="comment"># To use the long form of plugin names set &quot;version = 2&quot;</span></span><br><span class="line"><span class="section">[plugins.cri.registry.mirrors]</span></span><br><span class="line">  <span class="section">[plugins.cri.registry.mirrors.&quot;IP:PORT&quot;]</span></span><br><span class="line">    <span class="attr">endpoint</span> = [<span class="string">&quot;http://IP:PORT&quot;</span>]</span><br></pre></td></tr></table></figure></div>
+
+<p>這個用意是指當遇到指定的 IP 和 PORT 的時候，轉成使用<code>http</code>去呼叫，而非預設的<code>https</code>。</p>
+</li>
+<li><p>重啟 containerd</p>
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">sudo systemctl restart containerd</span><br></pre></td></tr></table></figure></div></li>
+</ol>
+<p>接著刪除原本的 deploy，重新 apply 一次就可以正常拉取 image。</p>
+]]></content>
+      <tags>
+        <tag>Kubernetes</tag>
+      </tags>
+  </entry>
+  <entry>
     <title>Kubernetes 介紹與使用KIND簡單建置Cluster/Local Registry</title>
     <url>/2023/11/24/k8s-introduce-1/</url>
     <content><![CDATA[<h1 id="Kubernetes-K8S"><a href="#Kubernetes-K8S" class="headerlink" title="Kubernetes(K8S)"></a>Kubernetes(K8S)</h1><p>Kubernetes 是一個協助我們自動化部署、擴張以及管理容器應用程式(containerized applications)的系統。相較於需要手動部署每個容器化應用程式(containers)到每台機器上，</p>
@@ -186,89 +269,6 @@
 
 <p>透過 <code>docker ps</code> 可以看見 K8S 的 Container 的 30000 port 是對應到 Host 的哪個 Port 對外開放。得知之後只要在 Host 的 Browser 進入 127.0.0.1:[<strong>Port</strong>] 就能看見 Hello World!。</p>
 <h2 id="常用指令"><a href="#常用指令" class="headerlink" title="常用指令"></a>常用指令</h2><div class="code-container" data-rel="Bash"><figure class="iseeu highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># get image list in kind (cluster1 叢集名稱)</span></span><br><span class="line">docker <span class="built_in">exec</span> -it cluster1-worker crictl image</span><br><span class="line"></span><br><span class="line"><span class="comment"># load image to k8s cluster</span></span><br><span class="line">kind load docker-image redis:latest</span><br><span class="line"></span><br><span class="line"><span class="comment"># get login token</span></span><br><span class="line">kubectl create token default</span><br><span class="line"></span><br><span class="line"><span class="comment"># get cluster info</span></span><br><span class="line">kubectl cluster-info</span><br><span class="line"></span><br><span class="line"><span class="comment"># get cluster config</span></span><br><span class="line">kubectl config view</span><br><span class="line"></span><br></pre></td></tr></table></figure></div>
-]]></content>
-      <tags>
-        <tag>Kubernetes</tag>
-      </tags>
-  </entry>
-  <entry>
-    <title>如何處理 Kubernetes 無法 Pull 私有鏡像庫的問題?</title>
-    <url>/2024/04/24/k8s-pulling-image-failed/</url>
-    <content><![CDATA[<ul>
-<li><a href="#%E7%A7%81%E6%9C%89%E9%8F%A1%E5%83%8F%E5%BA%AB%E7%84%A1%E6%B3%95%E6%8B%89%E5%8F%96">私有鏡像庫無法拉取</a><ul>
-<li><a href="#docker">Docker</a></li>
-<li><a href="#k8s-containerd">K8S Containerd</a></li>
-<li><a href="#pod-%E5%A4%B1%E6%95%97-images-%E7%84%A1%E6%B3%95%E6%88%90%E5%8A%9F%E6%8B%89%E5%8F%96">POD 失敗, Images 無法成功拉取</a></li>
-</ul>
-</li>
-</ul>
-<h2 id="私有鏡像庫無法拉取"><a href="#私有鏡像庫無法拉取" class="headerlink" title="私有鏡像庫無法拉取"></a>私有鏡像庫無法拉取</h2><p>Private Image Repository 通常會因為不安全的關係而導致無法正常拉取。所以在拉取之前需要先行設定。這件事情分成兩個面向，也因此有兩個地方要進行設定。</p>
-<h3 id="Docker"><a href="#Docker" class="headerlink" title="Docker"></a>Docker</h3><p><strong>透過 docker pull image 來取得 Image</strong></p>
-<ul>
-<li><p>將不信任的鏡像庫加入到信任清單中</p>
-<p>需要先調整 docker 的設定檔，信任這個私有的 Repository。我們可以先進入 <code>/etc/docker</code>。進入後如果沒有 <code>daemon.json</code> 則需要自行建立。</p>
-<div class="code-container" data-rel="Json"><figure class="iseeu highlight json"><table><tr><td class="code"><pre><span class="line"><span class="comment">// IP和PORT自行更換</span></span><br><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;insecure-registries&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="string">&quot;[IP]:[PORT]&quot;</span><span class="punctuation">]</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure></div>
-</li>
-<li><p>調整 docker.service 啟動帶入的參數</p>
-<ul>
-<li><code>sudo vi /usr/lib/systemd/system/docker.service</code></li>
-<li>在 restart&#x3D;always 下方加入 <code>EnvironmentFile=/etc/docker/daemon.json</code></li>
-</ul>
-</li>
-<li><p>重啟 docker.service</p>
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">sudo systemctl daemon-reload</span><br><span class="line">systemctl restart docker.service</span><br><span class="line">systemctl status docker.service</span><br></pre></td></tr></table></figure></div>
-</li>
-<li><p>執行登入</p>
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">sudo docker login [IP:Port] -u [UserName]</span><br></pre></td></tr></table></figure></div>
-</li>
-<li><p>Pull Image</p>
-<div class="code-container" data-rel="Plaintext"><figure class="iseeu highlight plaintext"><table><tr><td class="code"><pre><span class="line">docker pull [IP:Port]/[Image Name]:[tag]</span><br></pre></td></tr></table></figure></div></li>
-</ul>
-<h3 id="K8S-Containerd"><a href="#K8S-Containerd" class="headerlink" title="K8S Containerd"></a>K8S Containerd</h3><p>因為剛才已經利用 docker pull 拉取過 Image。在後續的 yaml 檔中，我們都需要有個認證能夠讓 K8S 使用，而非透過在每一個 Worker node 執行 docker login 。</p>
-<p>在這裡我們使用剛才 docker login 所產生的檔案來建立 K8S 的 Secret File。或不利用檔案而是指定好帳號密碼來產生 Secret File。</p>
-<ul>
-<li><p>產生 secret</p>
-<ol>
-<li>利用 docker login 產生的檔案</li>
-</ol>
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">kubectl create secret generic regcred \</span><br><span class="line">--from-file=.dockerconfigjson=autoConf.json \</span><br><span class="line">--<span class="built_in">type</span>=kubernetes.io/dockerconfigjson</span><br></pre></td></tr></table></figure></div>
-
-<ol start="2">
-<li>自行輸入資訊產生</li>
-</ol>
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">kubectl create secret docker-registry insecure-registry \ --docker-server=[IP:Port] --docker-username=[User Name] \ --docker-password=&#x27;[Password]&#x27; --docker-email=[User Email]</span><br></pre></td></tr></table></figure></div>
-
-<p>可以嘗試使用上面任一種方式產生，或兩種都行。在產生 Secret 後執行下面的語法，在<code>Auth</code>的欄位應該要完全相同。</p>
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">kubectl get secret [Secret Name] --output=&quot;jsonpath=&#123;.data.\.dockerconfigjson&#125;&quot; | base64 --decode</span><br></pre></td></tr></table></figure></div>
-
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line"># decode opaque</span><br><span class="line">kubectl get secrets/mongodb-secret --template=&#x27;&#123;&#123; index .data &quot;填入secret內欄位的名稱&quot; | base64decode&#125;&#125;&#x27;</span><br></pre></td></tr></table></figure></div>
-</li>
-<li><p>產生 secret 之後將其套用進 deploy yaml 中。</p>
-<div class="code-container" data-rel="Yaml"><figure class="iseeu highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">apps/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">dockerdemo-deployment</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">app:</span> <span class="string">uat-example</span></span><br><span class="line">  <span class="attr">replicas:</span> <span class="number">3</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">metadata:</span></span><br><span class="line">      <span class="attr">labels:</span></span><br><span class="line">        <span class="attr">app:</span> <span class="string">uat-example</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">uat-example-api</span></span><br><span class="line">          <span class="attr">image:</span> <span class="number">10.1</span><span class="number">.23</span><span class="number">.49</span><span class="string">:8082/example-api:dev</span></span><br><span class="line">          <span class="attr">imagePullPolicy:</span> <span class="string">IfNotPresent</span></span><br><span class="line">          <span class="attr">ports:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">8034</span></span><br><span class="line">      <span class="attr">imagePullSecrets:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">regcred</span> <span class="comment">#secret name</span></span><br></pre></td></tr></table></figure></div>
-</li>
-<li><p>k8s deploy</p>
-<pre><code> kubectl apply -f [File Name]
-</code></pre>
-</li>
-</ul>
-<h3 id="POD-失敗-Images-無法成功拉取"><a href="#POD-失敗-Images-無法成功拉取" class="headerlink" title="POD 失敗, Images 無法成功拉取"></a>POD 失敗, Images 無法成功拉取</h3><p>這時候可能會遭遇到問題，當你執行 <code>kubectl get pods</code> 的時候會發現沒有任何一個 pod 被啟動成功。再次執行 <code>kubectl describe pods [pod name]</code> 則會看見：</p>
-<blockquote>
-<p>錯誤訊息：http: server gave HTTP response to HTTPS client 的相關錯誤</p>
-</blockquote>
-<p>你可能會好奇，我 docker pull image 都能成功了，為什麼由 k8s 執行 pull 反而就失敗了？</p>
-<p>原因是因為 K8S 是透過使用 Container Runtime Interface（CRI）作為介面與容器執行時引擎（container runtime）進行通信。而在我們這個架構，我們的 CRI 是 Containerd，所以要為 Containerd 加入 Registry 的映射。</p>
-<ol>
-<li><p>進入<code>/etc/containerd</code>，開啟 <code>config.toml</code>，如果沒有則自行建立。</p>
-</li>
-<li><p>在裡面填入</p>
-<div class="code-container" data-rel="Toml"><figure class="iseeu highlight toml"><table><tr><td class="code"><pre><span class="line"><span class="comment"># Config file is parsed as version 1 by default.</span></span><br><span class="line"><span class="comment"># To use the long form of plugin names set &quot;version = 2&quot;</span></span><br><span class="line"><span class="section">[plugins.cri.registry.mirrors]</span></span><br><span class="line">  <span class="section">[plugins.cri.registry.mirrors.&quot;IP:PORT&quot;]</span></span><br><span class="line">    <span class="attr">endpoint</span> = [<span class="string">&quot;http://IP:PORT&quot;</span>]</span><br></pre></td></tr></table></figure></div>
-
-<p>這個用意是指當遇到指定的 IP 和 PORT 的時候，轉成使用<code>http</code>去呼叫，而非預設的<code>https</code>。</p>
-</li>
-<li><p>重啟 containerd</p>
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">sudo systemctl restart containerd</span><br></pre></td></tr></table></figure></div></li>
-</ol>
-<p>接著刪除原本的 deploy，重新 apply 一次就可以正常拉取 image。</p>
 ]]></content>
       <tags>
         <tag>Kubernetes</tag>
@@ -698,7 +698,7 @@
                       alt="error"
                 ></p>
 <p>可以看到確實出現了 <code>ONLY_FULL_GROUP_BY</code> 的設定，也就是這個設定導致很多語法都無法『正常』執行。因此我們需要把它關閉。</p>
-<h2 id="關閉ONLY-FULL-GROUP-BY"><a href="#關閉ONLY-FULL-GROUP-BY" class="headerlink" title="關閉ONLY_FULL_GROUP_BY"></a>關閉<code>ONLY_FULL_GROUP_BY</code></h2><p>如果是 homebrew 安裝的 <a class="link"   href="mailto:&#109;&#121;&#115;&#x71;&#108;&#x40;&#x35;&#46;&#x37;" >&#109;&#121;&#115;&#x71;&#108;&#x40;&#x35;&#46;&#x37;<i class="fa-solid fa-arrow-up-right ml-[0.2em] font-light align-text-top text-[0.7em] link-icon"></i></a> 路徑，需編輯<code>/opt/homebrew/etc/my.cnf</code> 這個設定檔。並在裡面加入你需要開啟的 sql_mode。否則用下語法的方式每次重啟 mysql 都會恢復到預設設定。</p>
+<h2 id="關閉ONLY-FULL-GROUP-BY"><a href="#關閉ONLY-FULL-GROUP-BY" class="headerlink" title="關閉ONLY_FULL_GROUP_BY"></a>關閉<code>ONLY_FULL_GROUP_BY</code></h2><p>如果是 homebrew 安裝的 <a class="link"   href="mailto:&#x6d;&#121;&#x73;&#113;&#108;&#64;&#x35;&#x2e;&#55;" >&#x6d;&#121;&#x73;&#113;&#108;&#64;&#x35;&#x2e;&#55;<i class="fa-solid fa-arrow-up-right ml-[0.2em] font-light align-text-top text-[0.7em] link-icon"></i></a> 路徑，需編輯<code>/opt/homebrew/etc/my.cnf</code> 這個設定檔。並在裡面加入你需要開啟的 sql_mode。否則用下語法的方式每次重啟 mysql 都會恢復到預設設定。</p>
 <p>準備把下面這段設定貼到 config 中</p>
 <blockquote>
 <p><code>sql_mode = &quot;STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION”</code></p>
