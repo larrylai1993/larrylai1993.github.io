@@ -1,86 +1,185 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
-    <title>如何處理 Kubernetes 無法 Pull 私有鏡像庫的問題?</title>
-    <url>/2024/04/24/k8s-pulling-image-failed/</url>
-    <content><![CDATA[<ul>
-<li><a href="#%E7%A7%81%E6%9C%89%E9%8F%A1%E5%83%8F%E5%BA%AB%E7%84%A1%E6%B3%95%E6%8B%89%E5%8F%96">私有鏡像庫無法拉取</a><ul>
-<li><a href="#docker">Docker</a></li>
-<li><a href="#k8s-containerd">K8S Containerd</a></li>
-<li><a href="#pod-%E5%A4%B1%E6%95%97-images-%E7%84%A1%E6%B3%95%E6%88%90%E5%8A%9F%E6%8B%89%E5%8F%96">POD 失敗, Images 無法成功拉取</a></li>
-</ul>
-</li>
-</ul>
-<h2 id="私有鏡像庫無法拉取"><a href="#私有鏡像庫無法拉取" class="headerlink" title="私有鏡像庫無法拉取"></a>私有鏡像庫無法拉取</h2><p>Private Image Repository 通常會因為不安全的關係而導致無法正常拉取。所以在拉取之前需要先行設定。這件事情分成兩個面向，也因此有兩個地方要進行設定。</p>
-<h3 id="Docker"><a href="#Docker" class="headerlink" title="Docker"></a>Docker</h3><p><strong>透過 docker pull image 來取得 Image</strong></p>
-<ul>
-<li><p>將不信任的鏡像庫加入到信任清單中</p>
-<p>需要先調整 docker 的設定檔，信任這個私有的 Repository。我們可以先進入 <code>/etc/docker</code>。進入後如果沒有 <code>daemon.json</code> 則需要自行建立。</p>
-<div class="code-container" data-rel="Json"><figure class="iseeu highlight json"><table><tr><td class="code"><pre><span class="line"><span class="comment">// IP和PORT自行更換</span></span><br><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;insecure-registries&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="string">&quot;[IP]:[PORT]&quot;</span><span class="punctuation">]</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure></div>
-</li>
-<li><p>調整 docker.service 啟動帶入的參數</p>
-<ul>
-<li><code>sudo vi /usr/lib/systemd/system/docker.service</code></li>
-<li>在 restart&#x3D;always 下方加入 <code>EnvironmentFile=/etc/docker/daemon.json</code></li>
-</ul>
-</li>
-<li><p>重啟 docker.service</p>
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">sudo systemctl daemon-reload</span><br><span class="line">systemctl restart docker.service</span><br><span class="line">systemctl status docker.service</span><br></pre></td></tr></table></figure></div>
-</li>
-<li><p>執行登入</p>
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">sudo docker login [IP:Port] -u [UserName]</span><br></pre></td></tr></table></figure></div>
-</li>
-<li><p>Pull Image</p>
-<div class="code-container" data-rel="Plaintext"><figure class="iseeu highlight plaintext"><table><tr><td class="code"><pre><span class="line">docker pull [IP:Port]/[Image Name]:[tag]</span><br></pre></td></tr></table></figure></div></li>
-</ul>
-<h3 id="K8S-Containerd"><a href="#K8S-Containerd" class="headerlink" title="K8S Containerd"></a>K8S Containerd</h3><p>因為剛才已經利用 docker pull 拉取過 Image。在後續的 yaml 檔中，我們都需要有個認證能夠讓 K8S 使用，而非透過在每一個 Worker node 執行 docker login 。</p>
-<p>在這裡我們使用剛才 docker login 所產生的檔案來建立 K8S 的 Secret File。或不利用檔案而是指定好帳號密碼來產生 Secret File。</p>
-<ul>
-<li><p>產生 secret</p>
-<ol>
-<li>利用 docker login 產生的檔案</li>
-</ol>
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">kubectl create secret generic regcred \</span><br><span class="line">--from-file=.dockerconfigjson=autoConf.json \</span><br><span class="line">--<span class="built_in">type</span>=kubernetes.io/dockerconfigjson</span><br></pre></td></tr></table></figure></div>
-
-<ol start="2">
-<li>自行輸入資訊產生</li>
-</ol>
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">kubectl create secret docker-registry insecure-registry \ --docker-server=[IP:Port] --docker-username=[User Name] \ --docker-password=&#x27;[Password]&#x27; --docker-email=[User Email]</span><br></pre></td></tr></table></figure></div>
-
-<p>可以嘗試使用上面任一種方式產生，或兩種都行。在產生 Secret 後執行下面的語法，在<code>Auth</code>的欄位應該要完全相同。</p>
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">kubectl get secret [Secret Name] --output=&quot;jsonpath=&#123;.data.\.dockerconfigjson&#125;&quot; | base64 --decode</span><br></pre></td></tr></table></figure></div>
-
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line"># decode opaque</span><br><span class="line">kubectl get secrets/mongodb-secret --template=&#x27;&#123;&#123; index .data &quot;填入secret內欄位的名稱&quot; | base64decode&#125;&#125;&#x27;</span><br></pre></td></tr></table></figure></div>
-</li>
-<li><p>產生 secret 之後將其套用進 deploy yaml 中。</p>
-<div class="code-container" data-rel="Yaml"><figure class="iseeu highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">apps/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">dockerdemo-deployment</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">app:</span> <span class="string">uat-example</span></span><br><span class="line">  <span class="attr">replicas:</span> <span class="number">3</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">metadata:</span></span><br><span class="line">      <span class="attr">labels:</span></span><br><span class="line">        <span class="attr">app:</span> <span class="string">uat-example</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">uat-example-api</span></span><br><span class="line">          <span class="attr">image:</span> <span class="number">10.1</span><span class="number">.23</span><span class="number">.49</span><span class="string">:8082/example-api:dev</span></span><br><span class="line">          <span class="attr">imagePullPolicy:</span> <span class="string">IfNotPresent</span></span><br><span class="line">          <span class="attr">ports:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">8034</span></span><br><span class="line">      <span class="attr">imagePullSecrets:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">regcred</span> <span class="comment">#secret name</span></span><br></pre></td></tr></table></figure></div>
-</li>
-<li><p>k8s deploy</p>
-<pre><code> kubectl apply -f [File Name]
-</code></pre>
-</li>
-</ul>
-<h3 id="POD-失敗-Images-無法成功拉取"><a href="#POD-失敗-Images-無法成功拉取" class="headerlink" title="POD 失敗, Images 無法成功拉取"></a>POD 失敗, Images 無法成功拉取</h3><p>這時候可能會遭遇到問題，當你執行 <code>kubectl get pods</code> 的時候會發現沒有任何一個 pod 被啟動成功。再次執行 <code>kubectl describe pods [pod name]</code> 則會看見：</p>
-<blockquote>
-<p>錯誤訊息：http: server gave HTTP response to HTTPS client 的相關錯誤</p>
+    <title>Message Queue 簡單介紹與比較</title>
+    <url>/2023/11/25/message-queue-introduce/</url>
+    <content><![CDATA[<h1 id="Message-Queue"><a href="#Message-Queue" class="headerlink" title="Message Queue"></a>Message Queue</h1><blockquote>
+<p>Message Queue 訊息佇列，既然資料結構如其名是 Queue，那麼 FIFO 先進先出的概念就得先了解。存放於 Queue 中的即是 Message。</p>
 </blockquote>
-<p>你可能會好奇，我 docker pull image 都能成功了，為什麼由 k8s 執行 pull 反而就失敗了？</p>
-<p>原因是因為 K8S 是透過使用 Container Runtime Interface（CRI）作為介面與容器執行時引擎（container runtime）進行通信。而在我們這個架構，我們的 CRI 是 Containerd，所以要為 Containerd 加入 Registry 的映射。</p>
+<p>主要用途在於提供 <code>不同Process</code> 、 <code>不同Thread</code> 或是在微服務中各個 Service 之間的<strong>訊息溝通</strong>。</p>
+<p><img  
+                     lazyload
+                     src="/images/loading.svg"
+                     data-src="/../Images-Posts/2_MQ_Process.png"
+                      alt="MQ_Process"
+                ></p>
+<h2 id="Application-Intergration"><a href="#Application-Intergration" class="headerlink" title="Application Intergration"></a>Application Intergration</h2><blockquote>
+<p>在一個系統中，一般不會只有一隻程式在運作，而是會有多隻程式同時負責各種不同的任務，而程式之間難免會有互相傳遞資料進行處理的需求，而這類的需求，以下都統稱為 applcation 的整合。</p>
+</blockquote>
+<ul>
+<li><p>File Based Intergration</p>
+<p>Application 根據要處理的任務，產生檔案到特定的路徑。其中任務成功或失敗可以存放到不同 folder 中。而其他接收訊息的 application(或稱 process application) 則是不停監控該路徑有沒有新檔案產生，有則取出檔案進行處理。</p>
+</li>
+<li><p>Shared Database Intergration</p>
 <ol>
-<li><p>進入<code>/etc/containerd</code>，開啟 <code>config.toml</code>，如果沒有則自行建立。</p>
-</li>
-<li><p>在裡面填入</p>
-<div class="code-container" data-rel="Toml"><figure class="iseeu highlight toml"><table><tr><td class="code"><pre><span class="line"><span class="comment"># Config file is parsed as version 1 by default.</span></span><br><span class="line"><span class="comment"># To use the long form of plugin names set &quot;version = 2&quot;</span></span><br><span class="line"><span class="section">[plugins.cri.registry.mirrors]</span></span><br><span class="line">  <span class="section">[plugins.cri.registry.mirrors.&quot;IP:PORT&quot;]</span></span><br><span class="line">    <span class="attr">endpoint</span> = [<span class="string">&quot;http://IP:PORT&quot;</span>]</span><br></pre></td></tr></table></figure></div>
-
-<p>這個用意是指當遇到指定的 IP 和 PORT 的時候，轉成使用<code>http</code>去呼叫，而非預設的<code>https</code>。</p>
-</li>
-<li><p>重啟 containerd</p>
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">sudo systemctl restart containerd</span><br></pre></td></tr></table></figure></div></li>
+<li>source application 收到新任務時，將資料寫入 db 中</li>
+<li>process application 監聽的對象從路徑中的檔案換成 database，若有新資料則進行處理</li>
+<li>process application 處理後將狀態寫回 db 中</li>
 </ol>
-<p>接著刪除原本的 deploy，重新 apply 一次就可以正常拉取 image。</p>
+</li>
+<li><p>Direct Connection Intergration</p>
+<ol>
+<li>source application 直接傳訊息給 process application</li>
+<li>可能透過 TCP&#x2F;IP 或是 named pipe connection 的方式傳遞資料</li>
+<li>傳遞資訊的資料格式並沒有限制，由連線兩端的 application 自訂，可以是純文字、XML 或 JSON。</li>
+</ol>
+</li>
+<li><p><strong>Asynchronous Message Broker (Message Queue)</strong></p>
+<ol>
+<li>不限傳遞資料格式</li>
+<li>需要額外 message queue middleware 協助，也會被稱作 message broker 或 message bus</li>
+<li>message broker 收到來自 source application 的訊息後，會轉發給 process application，而在這方式中，source application 與 process application 通常又各自被稱為 producer 與 consumer。</li>
+</ol>
+</li>
+</ul>
+<h2 id="特性-優勢"><a href="#特性-優勢" class="headerlink" title="特性 &amp; 優勢"></a>特性 &amp; 優勢</h2><p>Message Queue 最重要的能力在於<strong>非同步</strong>的特性，因為 Producers 發送訊息時不需即刻得到 Response 便可繼續執行其他事情。</p>
+<p>之於非同步的特性伴隨著的優勢便是解耦(Decouple)，開發人員就可以專心負責在屬於自己的區塊進行工作。除此之外 Producer 無需清楚 Consumer 的實際位置(IP Address 等等)，只需要將資料送往 Message Queue 就好，剩下的事情 Message Broker 會根據設定自行處理掉。</p>
+<p>再來高可用性，例如<strong>叢集的高可用性</strong>，當 Master 處於異常狀態時，會轉由 Slave 進行代理繼續提供服務。以確保服務的運行來提供叢集的高可用性。另外則是<strong>資料的高可用性</strong>，當 Message 送至 Queue 但服務發生異常(如 Consumer 消失時)，資料仍然可等到 Consumer 重新上線時再進行推送(Push)或是被拉取(Pull)，直到 Message 被正確消耗後會發出 Ack (Acknowledgement) 確認通知之後 Message 則會消失。</p>
+<p>最後則是 Scaling 擴展，如果突然遭遇大的流量，此時 queue 就提供了一個 buffer 的功能，能夠緩衝尖峰流量，在資源固定的情況下，能夠處理更多的任務，以時間換取資源！ 但有時訊息可能真的太多，產生的速度快於消耗的速度，或是你無法接受太長的 latency，此時 consumer process 就可以隨時增加多個，不會有衝突的風險</p>
+<p>另外，先進先出的佇列資料結構也直接確保了資料的有序性。</p>
+<h2 id="Use-Case"><a href="#Use-Case" class="headerlink" title="Use Case"></a>Use Case</h2><ul>
+<li><p><strong>延遲問題不重要的工作</strong></p>
+<p>寄送郵件這類工作，使用者可以接受信晚個幾秒，幾十秒甚至幾分鐘到時。意即資料不是由使用者寫入，使用者也不曉得資料何時應該要出現，延遲問題就不是那麼重要。</p>
+</li>
+<li><p><strong>大量運算的工作</strong></p>
+<p>比如說 image resizing 或是 video encoding 這類 CPU intensive 的工作，一來是使用者上傳完圖片影片，可能不需要等到這類都做完了你才跟他說 ok，二來是你也不會想讓這類工作 block 住或拖垮你的 web server 的效能．</p>
+</li>
+<li><p><strong>無法控制的工作</strong></p>
+<p>當你的工作需要協調許多資源才能完成時，有機會因為其中一個資源負載過重因而造成整個工作變得極度緩慢，尤其資源是外部的，所以你無法控制的時候。</p>
+</li>
+</ul>
+<h2 id="Kafka-與-RabbitMQ-的抉擇"><a href="#Kafka-與-RabbitMQ-的抉擇" class="headerlink" title="Kafka 與 RabbitMQ 的抉擇"></a>Kafka 與 RabbitMQ 的抉擇</h2><p>比較兩者之前應該先了解 Message Queue 分成兩種：</p>
+<ol>
+<li>Memory Based</li>
+<li>Log Based</li>
+</ol>
+<ul>
+<li><p><strong>Memory Based (RabbitMQ)</strong></p>
+<ul>
+<li>Message 是<strong>存放於 Memory</strong></li>
+<li>Consumer 發出 Ack(Acknowledgement) 確認 Message 取得後 Broker 則會直接刪除 Message</li>
+<li>Message 傳送方式是<code>推送(Push)</code></li>
+</ul>
+</li>
+<li><p><strong>Log Based (Kafka)</strong></p>
+<ul>
+<li>Message 進入後會直接<strong>寫到硬碟</strong>上，Consumer 消耗訊息時則是讀取檔案，直到讀到檔案資料的盡頭，接著繼續等候下一次通知。</li>
+<li>Message 傳送方式為<code>拉取(Pull)</code></li>
+</ul>
+</li>
+</ul>
+<blockquote>
+<p>Log Based 的讀寫速度限制則可透過將 topic 的 log 進行分區來進行改善，每個分區(Partition)由一台機器負責，並可獨立讀寫。</p>
+</blockquote>
+<p>了解了兩種基底的 MQ 差異後，接著了解他們兩者特性上的差異。</p>
+<p>先以簡易的比較表概括：</p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>RabbitMQ</th>
+<th>Kafka</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Load Balancing</td>
+<td>Yes</td>
+<td>Yes, but limited</td>
+</tr>
+<tr>
+<td>Fan-out</td>
+<td>Yes, through exchange binding</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Persistence</td>
+<td>Yes, through configuration</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Inorder delivery</td>
+<td>Yes, conditionally</td>
+<td>yes, per partition</td>
+</tr>
+</tbody></table>
+<ul>
+<li><p><code>Load Balancing(負載平衡)</code></p>
+<ul>
+<li><p><strong>Memory based</strong></p>
+<p>自然地 support 了 load balancing，當有 message 時， broker 輪流地向跟他有建立連結的 consumer 推送信息，就達成了 load balancing 的效果， 越多 consumer，就可以平行處理越多的工作。</p>
+</li>
+<li><p><strong>Log based</strong></p>
+<p>需透過方才提到的 Partition 方法來達成 load balancing。<br>例如一個 topic，並且將此 topic 的 partition 分成三份，此時就可以 assign 三個 consumer 給他。感覺上像是一個 topic 的 message 被提供給三個 consumer 拉取。但實際上則是每個 partition 對應到一個 consumer，便實現了平行處理，意即達到負載平衡。</p>
+</li>
+</ul>
+</li>
+<li><p><code>Fan-Out(扇形發送)</code></p>
+<ul>
+<li><p><strong>Memory based</strong></p>
+<p>需要透過額外的設計才能達成，透過 AMQP 協議的 exchange binding 可以實現 pub-sub。</p>
+</li>
+<li><p><strong>Log based</strong></p>
+<p>本身即為 fan-out，每個 consumer 對 log 檔案想讀哪就讀哪，想重複讀幾次就讀幾次</p>
+</li>
+</ul>
+</li>
+<li><p><code>Persistence(持續性)</code></p>
+<ul>
+<li><p><strong>Memory based</strong></p>
+<p>可透過設置將 Message 寫入硬碟作為 Backup 時使用，但僅保存到 Consumer 成功消耗之前。</p>
+</li>
+<li><p><strong>Log based</strong></p>
+<p>每個 message 都會寫入硬碟，除非刪掉它，否則會一直存在。</p>
+</li>
+</ul>
+</li>
+<li><p><code>Inorder delivery(有序發送)</code></p>
+<ul>
+<li><p><strong>Memory based</strong></p>
+<p>無法保證 message 一個一個按照順序的被處理，除非每一個 topic 只有一個 consumer。</p>
+</li>
+<li><p><strong>Log based</strong></p>
+<p>每個 partition 上的 message，一定是被 consumer 有序讀取，但不同 partition 之間就沒有順序的保證，他們理論上是各自獨立的。</p>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="最終選擇誰"><a href="#最終選擇誰" class="headerlink" title="最終選擇誰"></a>最終選擇誰</h2><p>需考慮下列三點</p>
+<ol>
+<li><p>資料是否需要被保存?</p>
+<ul>
+<li>需要保存鐵定是選擇 log based 的 MQ，也就是 Kafka。</li>
+</ul>
+</li>
+<li><p>資料有序性是否重要?</p>
+<ul>
+<li>針對系統開發的面向判斷是否需要維持資料的有序性，如果需要的話則需要選擇 Log Based。但這也僅限於同一個 Partition，若不同的話則無法保證順序。</li>
+</ul>
+</li>
+<li><p>工作耗損是否昂貴?</p>
+<ul>
+<li>log based 受限於需要多個 partition 來實現負載平衡來提升讀寫速度，建設上較為昂貴。</li>
+<li>同個 Partition 只要 Message 過多容易消耗更多時間，最後造成堵塞。</li>
+</ul>
+</li>
+</ol>
 ]]></content>
+      <categories>
+        <category>Basic</category>
+      </categories>
       <tags>
-        <tag>Kubernetes</tag>
+        <tag>MicroService</tag>
+        <tag>MessageQueue</tag>
       </tags>
   </entry>
   <entry>
@@ -275,188 +374,6 @@
       </tags>
   </entry>
   <entry>
-    <title>Message Queue 簡單介紹與比較</title>
-    <url>/2023/11/25/message-queue-introduce/</url>
-    <content><![CDATA[<h1 id="Message-Queue"><a href="#Message-Queue" class="headerlink" title="Message Queue"></a>Message Queue</h1><blockquote>
-<p>Message Queue 訊息佇列，既然資料結構如其名是 Queue，那麼 FIFO 先進先出的概念就得先了解。存放於 Queue 中的即是 Message。</p>
-</blockquote>
-<p>主要用途在於提供 <code>不同Process</code> 、 <code>不同Thread</code> 或是在微服務中各個 Service 之間的<strong>訊息溝通</strong>。</p>
-<p><img  
-                     lazyload
-                     src="/images/loading.svg"
-                     data-src="/../Images-Posts/2_MQ_Process.png"
-                      alt="MQ_Process"
-                ></p>
-<h2 id="Application-Intergration"><a href="#Application-Intergration" class="headerlink" title="Application Intergration"></a>Application Intergration</h2><blockquote>
-<p>在一個系統中，一般不會只有一隻程式在運作，而是會有多隻程式同時負責各種不同的任務，而程式之間難免會有互相傳遞資料進行處理的需求，而這類的需求，以下都統稱為 applcation 的整合。</p>
-</blockquote>
-<ul>
-<li><p>File Based Intergration</p>
-<p>Application 根據要處理的任務，產生檔案到特定的路徑。其中任務成功或失敗可以存放到不同 folder 中。而其他接收訊息的 application(或稱 process application) 則是不停監控該路徑有沒有新檔案產生，有則取出檔案進行處理。</p>
-</li>
-<li><p>Shared Database Intergration</p>
-<ol>
-<li>source application 收到新任務時，將資料寫入 db 中</li>
-<li>process application 監聽的對象從路徑中的檔案換成 database，若有新資料則進行處理</li>
-<li>process application 處理後將狀態寫回 db 中</li>
-</ol>
-</li>
-<li><p>Direct Connection Intergration</p>
-<ol>
-<li>source application 直接傳訊息給 process application</li>
-<li>可能透過 TCP&#x2F;IP 或是 named pipe connection 的方式傳遞資料</li>
-<li>傳遞資訊的資料格式並沒有限制，由連線兩端的 application 自訂，可以是純文字、XML 或 JSON。</li>
-</ol>
-</li>
-<li><p><strong>Asynchronous Message Broker (Message Queue)</strong></p>
-<ol>
-<li>不限傳遞資料格式</li>
-<li>需要額外 message queue middleware 協助，也會被稱作 message broker 或 message bus</li>
-<li>message broker 收到來自 source application 的訊息後，會轉發給 process application，而在這方式中，source application 與 process application 通常又各自被稱為 producer 與 consumer。</li>
-</ol>
-</li>
-</ul>
-<h2 id="特性-優勢"><a href="#特性-優勢" class="headerlink" title="特性 &amp; 優勢"></a>特性 &amp; 優勢</h2><p>Message Queue 最重要的能力在於<strong>非同步</strong>的特性，因為 Producers 發送訊息時不需即刻得到 Response 便可繼續執行其他事情。</p>
-<p>之於非同步的特性伴隨著的優勢便是解耦(Decouple)，開發人員就可以專心負責在屬於自己的區塊進行工作。除此之外 Producer 無需清楚 Consumer 的實際位置(IP Address 等等)，只需要將資料送往 Message Queue 就好，剩下的事情 Message Broker 會根據設定自行處理掉。</p>
-<p>再來高可用性，例如<strong>叢集的高可用性</strong>，當 Master 處於異常狀態時，會轉由 Slave 進行代理繼續提供服務。以確保服務的運行來提供叢集的高可用性。另外則是<strong>資料的高可用性</strong>，當 Message 送至 Queue 但服務發生異常(如 Consumer 消失時)，資料仍然可等到 Consumer 重新上線時再進行推送(Push)或是被拉取(Pull)，直到 Message 被正確消耗後會發出 Ack (Acknowledgement) 確認通知之後 Message 則會消失。</p>
-<p>最後則是 Scaling 擴展，如果突然遭遇大的流量，此時 queue 就提供了一個 buffer 的功能，能夠緩衝尖峰流量，在資源固定的情況下，能夠處理更多的任務，以時間換取資源！ 但有時訊息可能真的太多，產生的速度快於消耗的速度，或是你無法接受太長的 latency，此時 consumer process 就可以隨時增加多個，不會有衝突的風險</p>
-<p>另外，先進先出的佇列資料結構也直接確保了資料的有序性。</p>
-<h2 id="Use-Case"><a href="#Use-Case" class="headerlink" title="Use Case"></a>Use Case</h2><ul>
-<li><p><strong>延遲問題不重要的工作</strong></p>
-<p>寄送郵件這類工作，使用者可以接受信晚個幾秒，幾十秒甚至幾分鐘到時。意即資料不是由使用者寫入，使用者也不曉得資料何時應該要出現，延遲問題就不是那麼重要。</p>
-</li>
-<li><p><strong>大量運算的工作</strong></p>
-<p>比如說 image resizing 或是 video encoding 這類 CPU intensive 的工作，一來是使用者上傳完圖片影片，可能不需要等到這類都做完了你才跟他說 ok，二來是你也不會想讓這類工作 block 住或拖垮你的 web server 的效能．</p>
-</li>
-<li><p><strong>無法控制的工作</strong></p>
-<p>當你的工作需要協調許多資源才能完成時，有機會因為其中一個資源負載過重因而造成整個工作變得極度緩慢，尤其資源是外部的，所以你無法控制的時候。</p>
-</li>
-</ul>
-<h2 id="Kafka-與-RabbitMQ-的抉擇"><a href="#Kafka-與-RabbitMQ-的抉擇" class="headerlink" title="Kafka 與 RabbitMQ 的抉擇"></a>Kafka 與 RabbitMQ 的抉擇</h2><p>比較兩者之前應該先了解 Message Queue 分成兩種：</p>
-<ol>
-<li>Memory Based</li>
-<li>Log Based</li>
-</ol>
-<ul>
-<li><p><strong>Memory Based (RabbitMQ)</strong></p>
-<ul>
-<li>Message 是<strong>存放於 Memory</strong></li>
-<li>Consumer 發出 Ack(Acknowledgement) 確認 Message 取得後 Broker 則會直接刪除 Message</li>
-<li>Message 傳送方式是<code>推送(Push)</code></li>
-</ul>
-</li>
-<li><p><strong>Log Based (Kafka)</strong></p>
-<ul>
-<li>Message 進入後會直接<strong>寫到硬碟</strong>上，Consumer 消耗訊息時則是讀取檔案，直到讀到檔案資料的盡頭，接著繼續等候下一次通知。</li>
-<li>Message 傳送方式為<code>拉取(Pull)</code></li>
-</ul>
-</li>
-</ul>
-<blockquote>
-<p>Log Based 的讀寫速度限制則可透過將 topic 的 log 進行分區來進行改善，每個分區(Partition)由一台機器負責，並可獨立讀寫。</p>
-</blockquote>
-<p>了解了兩種基底的 MQ 差異後，接著了解他們兩者特性上的差異。</p>
-<p>先以簡易的比較表概括：</p>
-<table>
-<thead>
-<tr>
-<th>特性</th>
-<th>RabbitMQ</th>
-<th>Kafka</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>Load Balancing</td>
-<td>Yes</td>
-<td>Yes, but limited</td>
-</tr>
-<tr>
-<td>Fan-out</td>
-<td>Yes, through exchange binding</td>
-<td>Yes</td>
-</tr>
-<tr>
-<td>Persistence</td>
-<td>Yes, through configuration</td>
-<td>Yes</td>
-</tr>
-<tr>
-<td>Inorder delivery</td>
-<td>Yes, conditionally</td>
-<td>yes, per partition</td>
-</tr>
-</tbody></table>
-<ul>
-<li><p><code>Load Balancing(負載平衡)</code></p>
-<ul>
-<li><p><strong>Memory based</strong></p>
-<p>自然地 support 了 load balancing，當有 message 時， broker 輪流地向跟他有建立連結的 consumer 推送信息，就達成了 load balancing 的效果， 越多 consumer，就可以平行處理越多的工作。</p>
-</li>
-<li><p><strong>Log based</strong></p>
-<p>需透過方才提到的 Partition 方法來達成 load balancing。<br>例如一個 topic，並且將此 topic 的 partition 分成三份，此時就可以 assign 三個 consumer 給他。感覺上像是一個 topic 的 message 被提供給三個 consumer 拉取。但實際上則是每個 partition 對應到一個 consumer，便實現了平行處理，意即達到負載平衡。</p>
-</li>
-</ul>
-</li>
-<li><p><code>Fan-Out(扇形發送)</code></p>
-<ul>
-<li><p><strong>Memory based</strong></p>
-<p>需要透過額外的設計才能達成，透過 AMQP 協議的 exchange binding 可以實現 pub-sub。</p>
-</li>
-<li><p><strong>Log based</strong></p>
-<p>本身即為 fan-out，每個 consumer 對 log 檔案想讀哪就讀哪，想重複讀幾次就讀幾次</p>
-</li>
-</ul>
-</li>
-<li><p><code>Persistence(持續性)</code></p>
-<ul>
-<li><p><strong>Memory based</strong></p>
-<p>可透過設置將 Message 寫入硬碟作為 Backup 時使用，但僅保存到 Consumer 成功消耗之前。</p>
-</li>
-<li><p><strong>Log based</strong></p>
-<p>每個 message 都會寫入硬碟，除非刪掉它，否則會一直存在。</p>
-</li>
-</ul>
-</li>
-<li><p><code>Inorder delivery(有序發送)</code></p>
-<ul>
-<li><p><strong>Memory based</strong></p>
-<p>無法保證 message 一個一個按照順序的被處理，除非每一個 topic 只有一個 consumer。</p>
-</li>
-<li><p><strong>Log based</strong></p>
-<p>每個 partition 上的 message，一定是被 consumer 有序讀取，但不同 partition 之間就沒有順序的保證，他們理論上是各自獨立的。</p>
-</li>
-</ul>
-</li>
-</ul>
-<h2 id="最終選擇誰"><a href="#最終選擇誰" class="headerlink" title="最終選擇誰"></a>最終選擇誰</h2><p>需考慮下列三點</p>
-<ol>
-<li><p>資料是否需要被保存?</p>
-<ul>
-<li>需要保存鐵定是選擇 log based 的 MQ，也就是 Kafka。</li>
-</ul>
-</li>
-<li><p>資料有序性是否重要?</p>
-<ul>
-<li>針對系統開發的面向判斷是否需要維持資料的有序性，如果需要的話則需要選擇 Log Based。但這也僅限於同一個 Partition，若不同的話則無法保證順序。</li>
-</ul>
-</li>
-<li><p>工作耗損是否昂貴?</p>
-<ul>
-<li>log based 受限於需要多個 partition 來實現負載平衡來提升讀寫速度，建設上較為昂貴。</li>
-<li>同個 Partition 只要 Message 過多容易消耗更多時間，最後造成堵塞。</li>
-</ul>
-</li>
-</ol>
-]]></content>
-      <categories>
-        <category>Basic</category>
-      </categories>
-      <tags>
-        <tag>MicroService</tag>
-        <tag>MessageQueue</tag>
-      </tags>
-  </entry>
-  <entry>
     <title>人月神話（一）：我們都在焦油坑裡掙扎嗎？</title>
     <url>/2026/01/23/mythical-man-month-ch1/</url>
     <content><![CDATA[<p><img  
@@ -505,6 +422,89 @@
       <tags>
         <tag>人月神話</tag>
         <tag>讀書心得</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>如何處理 Kubernetes 無法 Pull 私有鏡像庫的問題?</title>
+    <url>/2024/04/24/k8s-pulling-image-failed/</url>
+    <content><![CDATA[<ul>
+<li><a href="#%E7%A7%81%E6%9C%89%E9%8F%A1%E5%83%8F%E5%BA%AB%E7%84%A1%E6%B3%95%E6%8B%89%E5%8F%96">私有鏡像庫無法拉取</a><ul>
+<li><a href="#docker">Docker</a></li>
+<li><a href="#k8s-containerd">K8S Containerd</a></li>
+<li><a href="#pod-%E5%A4%B1%E6%95%97-images-%E7%84%A1%E6%B3%95%E6%88%90%E5%8A%9F%E6%8B%89%E5%8F%96">POD 失敗, Images 無法成功拉取</a></li>
+</ul>
+</li>
+</ul>
+<h2 id="私有鏡像庫無法拉取"><a href="#私有鏡像庫無法拉取" class="headerlink" title="私有鏡像庫無法拉取"></a>私有鏡像庫無法拉取</h2><p>Private Image Repository 通常會因為不安全的關係而導致無法正常拉取。所以在拉取之前需要先行設定。這件事情分成兩個面向，也因此有兩個地方要進行設定。</p>
+<h3 id="Docker"><a href="#Docker" class="headerlink" title="Docker"></a>Docker</h3><p><strong>透過 docker pull image 來取得 Image</strong></p>
+<ul>
+<li><p>將不信任的鏡像庫加入到信任清單中</p>
+<p>需要先調整 docker 的設定檔，信任這個私有的 Repository。我們可以先進入 <code>/etc/docker</code>。進入後如果沒有 <code>daemon.json</code> 則需要自行建立。</p>
+<div class="code-container" data-rel="Json"><figure class="iseeu highlight json"><table><tr><td class="code"><pre><span class="line"><span class="comment">// IP和PORT自行更換</span></span><br><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;insecure-registries&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="string">&quot;[IP]:[PORT]&quot;</span><span class="punctuation">]</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure></div>
+</li>
+<li><p>調整 docker.service 啟動帶入的參數</p>
+<ul>
+<li><code>sudo vi /usr/lib/systemd/system/docker.service</code></li>
+<li>在 restart&#x3D;always 下方加入 <code>EnvironmentFile=/etc/docker/daemon.json</code></li>
+</ul>
+</li>
+<li><p>重啟 docker.service</p>
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">sudo systemctl daemon-reload</span><br><span class="line">systemctl restart docker.service</span><br><span class="line">systemctl status docker.service</span><br></pre></td></tr></table></figure></div>
+</li>
+<li><p>執行登入</p>
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">sudo docker login [IP:Port] -u [UserName]</span><br></pre></td></tr></table></figure></div>
+</li>
+<li><p>Pull Image</p>
+<div class="code-container" data-rel="Plaintext"><figure class="iseeu highlight plaintext"><table><tr><td class="code"><pre><span class="line">docker pull [IP:Port]/[Image Name]:[tag]</span><br></pre></td></tr></table></figure></div></li>
+</ul>
+<h3 id="K8S-Containerd"><a href="#K8S-Containerd" class="headerlink" title="K8S Containerd"></a>K8S Containerd</h3><p>因為剛才已經利用 docker pull 拉取過 Image。在後續的 yaml 檔中，我們都需要有個認證能夠讓 K8S 使用，而非透過在每一個 Worker node 執行 docker login 。</p>
+<p>在這裡我們使用剛才 docker login 所產生的檔案來建立 K8S 的 Secret File。或不利用檔案而是指定好帳號密碼來產生 Secret File。</p>
+<ul>
+<li><p>產生 secret</p>
+<ol>
+<li>利用 docker login 產生的檔案</li>
+</ol>
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">kubectl create secret generic regcred \</span><br><span class="line">--from-file=.dockerconfigjson=autoConf.json \</span><br><span class="line">--<span class="built_in">type</span>=kubernetes.io/dockerconfigjson</span><br></pre></td></tr></table></figure></div>
+
+<ol start="2">
+<li>自行輸入資訊產生</li>
+</ol>
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">kubectl create secret docker-registry insecure-registry \ --docker-server=[IP:Port] --docker-username=[User Name] \ --docker-password=&#x27;[Password]&#x27; --docker-email=[User Email]</span><br></pre></td></tr></table></figure></div>
+
+<p>可以嘗試使用上面任一種方式產生，或兩種都行。在產生 Secret 後執行下面的語法，在<code>Auth</code>的欄位應該要完全相同。</p>
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">kubectl get secret [Secret Name] --output=&quot;jsonpath=&#123;.data.\.dockerconfigjson&#125;&quot; | base64 --decode</span><br></pre></td></tr></table></figure></div>
+
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line"># decode opaque</span><br><span class="line">kubectl get secrets/mongodb-secret --template=&#x27;&#123;&#123; index .data &quot;填入secret內欄位的名稱&quot; | base64decode&#125;&#125;&#x27;</span><br></pre></td></tr></table></figure></div>
+</li>
+<li><p>產生 secret 之後將其套用進 deploy yaml 中。</p>
+<div class="code-container" data-rel="Yaml"><figure class="iseeu highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">apps/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">dockerdemo-deployment</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">app:</span> <span class="string">uat-example</span></span><br><span class="line">  <span class="attr">replicas:</span> <span class="number">3</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">metadata:</span></span><br><span class="line">      <span class="attr">labels:</span></span><br><span class="line">        <span class="attr">app:</span> <span class="string">uat-example</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">uat-example-api</span></span><br><span class="line">          <span class="attr">image:</span> <span class="number">10.1</span><span class="number">.23</span><span class="number">.49</span><span class="string">:8082/example-api:dev</span></span><br><span class="line">          <span class="attr">imagePullPolicy:</span> <span class="string">IfNotPresent</span></span><br><span class="line">          <span class="attr">ports:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">8034</span></span><br><span class="line">      <span class="attr">imagePullSecrets:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">regcred</span> <span class="comment">#secret name</span></span><br></pre></td></tr></table></figure></div>
+</li>
+<li><p>k8s deploy</p>
+<pre><code> kubectl apply -f [File Name]
+</code></pre>
+</li>
+</ul>
+<h3 id="POD-失敗-Images-無法成功拉取"><a href="#POD-失敗-Images-無法成功拉取" class="headerlink" title="POD 失敗, Images 無法成功拉取"></a>POD 失敗, Images 無法成功拉取</h3><p>這時候可能會遭遇到問題，當你執行 <code>kubectl get pods</code> 的時候會發現沒有任何一個 pod 被啟動成功。再次執行 <code>kubectl describe pods [pod name]</code> 則會看見：</p>
+<blockquote>
+<p>錯誤訊息：http: server gave HTTP response to HTTPS client 的相關錯誤</p>
+</blockquote>
+<p>你可能會好奇，我 docker pull image 都能成功了，為什麼由 k8s 執行 pull 反而就失敗了？</p>
+<p>原因是因為 K8S 是透過使用 Container Runtime Interface（CRI）作為介面與容器執行時引擎（container runtime）進行通信。而在我們這個架構，我們的 CRI 是 Containerd，所以要為 Containerd 加入 Registry 的映射。</p>
+<ol>
+<li><p>進入<code>/etc/containerd</code>，開啟 <code>config.toml</code>，如果沒有則自行建立。</p>
+</li>
+<li><p>在裡面填入</p>
+<div class="code-container" data-rel="Toml"><figure class="iseeu highlight toml"><table><tr><td class="code"><pre><span class="line"><span class="comment"># Config file is parsed as version 1 by default.</span></span><br><span class="line"><span class="comment"># To use the long form of plugin names set &quot;version = 2&quot;</span></span><br><span class="line"><span class="section">[plugins.cri.registry.mirrors]</span></span><br><span class="line">  <span class="section">[plugins.cri.registry.mirrors.&quot;IP:PORT&quot;]</span></span><br><span class="line">    <span class="attr">endpoint</span> = [<span class="string">&quot;http://IP:PORT&quot;</span>]</span><br></pre></td></tr></table></figure></div>
+
+<p>這個用意是指當遇到指定的 IP 和 PORT 的時候，轉成使用<code>http</code>去呼叫，而非預設的<code>https</code>。</p>
+</li>
+<li><p>重啟 containerd</p>
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">sudo systemctl restart containerd</span><br></pre></td></tr></table></figure></div></li>
+</ol>
+<p>接著刪除原本的 deploy，重新 apply 一次就可以正常拉取 image。</p>
+]]></content>
+      <tags>
+        <tag>Kubernetes</tag>
       </tags>
   </entry>
   <entry>
@@ -698,7 +698,7 @@
                       alt="error"
                 ></p>
 <p>可以看到確實出現了 <code>ONLY_FULL_GROUP_BY</code> 的設定，也就是這個設定導致很多語法都無法『正常』執行。因此我們需要把它關閉。</p>
-<h2 id="關閉ONLY-FULL-GROUP-BY"><a href="#關閉ONLY-FULL-GROUP-BY" class="headerlink" title="關閉ONLY_FULL_GROUP_BY"></a>關閉<code>ONLY_FULL_GROUP_BY</code></h2><p>如果是 homebrew 安裝的 <a class="link"   href="mailto:&#x6d;&#121;&#x73;&#113;&#108;&#64;&#x35;&#x2e;&#55;" >&#x6d;&#121;&#x73;&#113;&#108;&#64;&#x35;&#x2e;&#55;<i class="fa-solid fa-arrow-up-right ml-[0.2em] font-light align-text-top text-[0.7em] link-icon"></i></a> 路徑，需編輯<code>/opt/homebrew/etc/my.cnf</code> 這個設定檔。並在裡面加入你需要開啟的 sql_mode。否則用下語法的方式每次重啟 mysql 都會恢復到預設設定。</p>
+<h2 id="關閉ONLY-FULL-GROUP-BY"><a href="#關閉ONLY-FULL-GROUP-BY" class="headerlink" title="關閉ONLY_FULL_GROUP_BY"></a>關閉<code>ONLY_FULL_GROUP_BY</code></h2><p>如果是 homebrew 安裝的 <a class="link"   href="mailto:&#x6d;&#x79;&#115;&#x71;&#x6c;&#64;&#53;&#x2e;&#55;" >&#x6d;&#x79;&#115;&#x71;&#x6c;&#64;&#53;&#x2e;&#55;<i class="fa-solid fa-arrow-up-right ml-[0.2em] font-light align-text-top text-[0.7em] link-icon"></i></a> 路徑，需編輯<code>/opt/homebrew/etc/my.cnf</code> 這個設定檔。並在裡面加入你需要開啟的 sql_mode。否則用下語法的方式每次重啟 mysql 都會恢復到預設設定。</p>
 <p>準備把下面這段設定貼到 config 中</p>
 <blockquote>
 <p><code>sql_mode = &quot;STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION”</code></p>
