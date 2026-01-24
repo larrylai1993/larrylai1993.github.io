@@ -1,188 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
-    <title>Message Queue 簡單介紹與比較</title>
-    <url>/2023/11/25/message-queue-introduce/</url>
-    <content><![CDATA[<h1 id="Message-Queue"><a href="#Message-Queue" class="headerlink" title="Message Queue"></a>Message Queue</h1><blockquote>
-<p>Message Queue 訊息佇列，既然資料結構如其名是 Queue，那麼 FIFO 先進先出的概念就得先了解。存放於 Queue 中的即是 Message。</p>
-</blockquote>
-<p>主要用途在於提供 <code>不同Process</code> 、 <code>不同Thread</code> 或是在微服務中各個 Service 之間的<strong>訊息溝通</strong>。</p>
-<p><img  
-                     lazyload
-                     src="/images/loading.svg"
-                     data-src="/../Images-Posts/2_MQ_Process.png"
-                      alt="MQ_Process"
-                ></p>
-<h2 id="Application-Intergration"><a href="#Application-Intergration" class="headerlink" title="Application Intergration"></a>Application Intergration</h2><blockquote>
-<p>在一個系統中，一般不會只有一隻程式在運作，而是會有多隻程式同時負責各種不同的任務，而程式之間難免會有互相傳遞資料進行處理的需求，而這類的需求，以下都統稱為 applcation 的整合。</p>
-</blockquote>
-<ul>
-<li><p>File Based Intergration</p>
-<p>Application 根據要處理的任務，產生檔案到特定的路徑。其中任務成功或失敗可以存放到不同 folder 中。而其他接收訊息的 application(或稱 process application) 則是不停監控該路徑有沒有新檔案產生，有則取出檔案進行處理。</p>
-</li>
-<li><p>Shared Database Intergration</p>
-<ol>
-<li>source application 收到新任務時，將資料寫入 db 中</li>
-<li>process application 監聽的對象從路徑中的檔案換成 database，若有新資料則進行處理</li>
-<li>process application 處理後將狀態寫回 db 中</li>
-</ol>
-</li>
-<li><p>Direct Connection Intergration</p>
-<ol>
-<li>source application 直接傳訊息給 process application</li>
-<li>可能透過 TCP&#x2F;IP 或是 named pipe connection 的方式傳遞資料</li>
-<li>傳遞資訊的資料格式並沒有限制，由連線兩端的 application 自訂，可以是純文字、XML 或 JSON。</li>
-</ol>
-</li>
-<li><p><strong>Asynchronous Message Broker (Message Queue)</strong></p>
-<ol>
-<li>不限傳遞資料格式</li>
-<li>需要額外 message queue middleware 協助，也會被稱作 message broker 或 message bus</li>
-<li>message broker 收到來自 source application 的訊息後，會轉發給 process application，而在這方式中，source application 與 process application 通常又各自被稱為 producer 與 consumer。</li>
-</ol>
-</li>
-</ul>
-<h2 id="特性-優勢"><a href="#特性-優勢" class="headerlink" title="特性 &amp; 優勢"></a>特性 &amp; 優勢</h2><p>Message Queue 最重要的能力在於<strong>非同步</strong>的特性，因為 Producers 發送訊息時不需即刻得到 Response 便可繼續執行其他事情。</p>
-<p>之於非同步的特性伴隨著的優勢便是解耦(Decouple)，開發人員就可以專心負責在屬於自己的區塊進行工作。除此之外 Producer 無需清楚 Consumer 的實際位置(IP Address 等等)，只需要將資料送往 Message Queue 就好，剩下的事情 Message Broker 會根據設定自行處理掉。</p>
-<p>再來高可用性，例如<strong>叢集的高可用性</strong>，當 Master 處於異常狀態時，會轉由 Slave 進行代理繼續提供服務。以確保服務的運行來提供叢集的高可用性。另外則是<strong>資料的高可用性</strong>，當 Message 送至 Queue 但服務發生異常(如 Consumer 消失時)，資料仍然可等到 Consumer 重新上線時再進行推送(Push)或是被拉取(Pull)，直到 Message 被正確消耗後會發出 Ack (Acknowledgement) 確認通知之後 Message 則會消失。</p>
-<p>最後則是 Scaling 擴展，如果突然遭遇大的流量，此時 queue 就提供了一個 buffer 的功能，能夠緩衝尖峰流量，在資源固定的情況下，能夠處理更多的任務，以時間換取資源！ 但有時訊息可能真的太多，產生的速度快於消耗的速度，或是你無法接受太長的 latency，此時 consumer process 就可以隨時增加多個，不會有衝突的風險</p>
-<p>另外，先進先出的佇列資料結構也直接確保了資料的有序性。</p>
-<h2 id="Use-Case"><a href="#Use-Case" class="headerlink" title="Use Case"></a>Use Case</h2><ul>
-<li><p><strong>延遲問題不重要的工作</strong></p>
-<p>寄送郵件這類工作，使用者可以接受信晚個幾秒，幾十秒甚至幾分鐘到時。意即資料不是由使用者寫入，使用者也不曉得資料何時應該要出現，延遲問題就不是那麼重要。</p>
-</li>
-<li><p><strong>大量運算的工作</strong></p>
-<p>比如說 image resizing 或是 video encoding 這類 CPU intensive 的工作，一來是使用者上傳完圖片影片，可能不需要等到這類都做完了你才跟他說 ok，二來是你也不會想讓這類工作 block 住或拖垮你的 web server 的效能．</p>
-</li>
-<li><p><strong>無法控制的工作</strong></p>
-<p>當你的工作需要協調許多資源才能完成時，有機會因為其中一個資源負載過重因而造成整個工作變得極度緩慢，尤其資源是外部的，所以你無法控制的時候。</p>
-</li>
-</ul>
-<h2 id="Kafka-與-RabbitMQ-的抉擇"><a href="#Kafka-與-RabbitMQ-的抉擇" class="headerlink" title="Kafka 與 RabbitMQ 的抉擇"></a>Kafka 與 RabbitMQ 的抉擇</h2><p>比較兩者之前應該先了解 Message Queue 分成兩種：</p>
-<ol>
-<li>Memory Based</li>
-<li>Log Based</li>
-</ol>
-<ul>
-<li><p><strong>Memory Based (RabbitMQ)</strong></p>
-<ul>
-<li>Message 是<strong>存放於 Memory</strong></li>
-<li>Consumer 發出 Ack(Acknowledgement) 確認 Message 取得後 Broker 則會直接刪除 Message</li>
-<li>Message 傳送方式是<code>推送(Push)</code></li>
-</ul>
-</li>
-<li><p><strong>Log Based (Kafka)</strong></p>
-<ul>
-<li>Message 進入後會直接<strong>寫到硬碟</strong>上，Consumer 消耗訊息時則是讀取檔案，直到讀到檔案資料的盡頭，接著繼續等候下一次通知。</li>
-<li>Message 傳送方式為<code>拉取(Pull)</code></li>
-</ul>
-</li>
-</ul>
-<blockquote>
-<p>Log Based 的讀寫速度限制則可透過將 topic 的 log 進行分區來進行改善，每個分區(Partition)由一台機器負責，並可獨立讀寫。</p>
-</blockquote>
-<p>了解了兩種基底的 MQ 差異後，接著了解他們兩者特性上的差異。</p>
-<p>先以簡易的比較表概括：</p>
-<table>
-<thead>
-<tr>
-<th>特性</th>
-<th>RabbitMQ</th>
-<th>Kafka</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>Load Balancing</td>
-<td>Yes</td>
-<td>Yes, but limited</td>
-</tr>
-<tr>
-<td>Fan-out</td>
-<td>Yes, through exchange binding</td>
-<td>Yes</td>
-</tr>
-<tr>
-<td>Persistence</td>
-<td>Yes, through configuration</td>
-<td>Yes</td>
-</tr>
-<tr>
-<td>Inorder delivery</td>
-<td>Yes, conditionally</td>
-<td>yes, per partition</td>
-</tr>
-</tbody></table>
-<ul>
-<li><p><code>Load Balancing(負載平衡)</code></p>
-<ul>
-<li><p><strong>Memory based</strong></p>
-<p>自然地 support 了 load balancing，當有 message 時， broker 輪流地向跟他有建立連結的 consumer 推送信息，就達成了 load balancing 的效果， 越多 consumer，就可以平行處理越多的工作。</p>
-</li>
-<li><p><strong>Log based</strong></p>
-<p>需透過方才提到的 Partition 方法來達成 load balancing。<br>例如一個 topic，並且將此 topic 的 partition 分成三份，此時就可以 assign 三個 consumer 給他。感覺上像是一個 topic 的 message 被提供給三個 consumer 拉取。但實際上則是每個 partition 對應到一個 consumer，便實現了平行處理，意即達到負載平衡。</p>
-</li>
-</ul>
-</li>
-<li><p><code>Fan-Out(扇形發送)</code></p>
-<ul>
-<li><p><strong>Memory based</strong></p>
-<p>需要透過額外的設計才能達成，透過 AMQP 協議的 exchange binding 可以實現 pub-sub。</p>
-</li>
-<li><p><strong>Log based</strong></p>
-<p>本身即為 fan-out，每個 consumer 對 log 檔案想讀哪就讀哪，想重複讀幾次就讀幾次</p>
-</li>
-</ul>
-</li>
-<li><p><code>Persistence(持續性)</code></p>
-<ul>
-<li><p><strong>Memory based</strong></p>
-<p>可透過設置將 Message 寫入硬碟作為 Backup 時使用，但僅保存到 Consumer 成功消耗之前。</p>
-</li>
-<li><p><strong>Log based</strong></p>
-<p>每個 message 都會寫入硬碟，除非刪掉它，否則會一直存在。</p>
-</li>
-</ul>
-</li>
-<li><p><code>Inorder delivery(有序發送)</code></p>
-<ul>
-<li><p><strong>Memory based</strong></p>
-<p>無法保證 message 一個一個按照順序的被處理，除非每一個 topic 只有一個 consumer。</p>
-</li>
-<li><p><strong>Log based</strong></p>
-<p>每個 partition 上的 message，一定是被 consumer 有序讀取，但不同 partition 之間就沒有順序的保證，他們理論上是各自獨立的。</p>
-</li>
-</ul>
-</li>
-</ul>
-<h2 id="最終選擇誰"><a href="#最終選擇誰" class="headerlink" title="最終選擇誰"></a>最終選擇誰</h2><p>需考慮下列三點</p>
-<ol>
-<li><p>資料是否需要被保存?</p>
-<ul>
-<li>需要保存鐵定是選擇 log based 的 MQ，也就是 Kafka。</li>
-</ul>
-</li>
-<li><p>資料有序性是否重要?</p>
-<ul>
-<li>針對系統開發的面向判斷是否需要維持資料的有序性，如果需要的話則需要選擇 Log Based。但這也僅限於同一個 Partition，若不同的話則無法保證順序。</li>
-</ul>
-</li>
-<li><p>工作耗損是否昂貴?</p>
-<ul>
-<li>log based 受限於需要多個 partition 來實現負載平衡來提升讀寫速度，建設上較為昂貴。</li>
-<li>同個 Partition 只要 Message 過多容易消耗更多時間，最後造成堵塞。</li>
-</ul>
-</li>
-</ol>
-]]></content>
-      <categories>
-        <category>Basic</category>
-      </categories>
-      <tags>
-        <tag>MicroService</tag>
-        <tag>MessageQueue</tag>
-      </tags>
-  </entry>
-  <entry>
     <title>Kubernetes 介紹與使用KIND簡單建置Cluster/Local Registry</title>
     <url>/2023/11/24/k8s-introduce-1/</url>
     <content><![CDATA[<h1 id="Kubernetes-K8S"><a href="#Kubernetes-K8S" class="headerlink" title="Kubernetes(K8S)"></a>Kubernetes(K8S)</h1><p>Kubernetes 是一個協助我們自動化部署、擴張以及管理容器應用程式(containerized applications)的系統。相較於需要手動部署每個容器化應用程式(containers)到每台機器上，</p>
@@ -374,57 +192,6 @@
       </tags>
   </entry>
   <entry>
-    <title>人月神話（一）：我們都在焦油坑裡掙扎嗎？</title>
-    <url>/2026/01/23/mythical-man-month-ch1/</url>
-    <content><![CDATA[<p><img  
-                     lazyload
-                     src="/images/loading.svg"
-                     data-src="/../Images-Posts/mythical-man-month/effor-program-product-1.png"
-                      alt="Tar Pit"
-                ></p>
-<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>最近翻 linkedin 剛好看到有人推薦這本書：<strong>《人月神話》（The Mythical Man-Month）</strong>。</p>
-<p>問一問才發現原來這本書是號稱軟體工程界的聖經，所以想了想還是要撥點時間看吧？也許能給現在的自己有些什麼啟發。</p>
-<p>那就開啟了不知道會不會寫完的這本書的讀書心得吧…</p>
-<hr>
-<p>第一章的標題：<strong>焦油坑（The Tar Pit）</strong>。</p>
-<p>作者 Fred Brooks 引用了史前巨獸在焦油坑掙扎的場景：恐龍、猛獁象、劍齒虎，這些強大的生物在焦油中掙扎，越是猛烈，纏得越緊。最後，沒有誰能逃脫。</p>
-<p>但我們是人，我們可能會享受這個掙扎的過程。因為快樂總是伴隨著苦痛，而煩惱即是菩提。我們總在焦油坑裡掙扎，但偶爾，我們也能爬上岸，享受一下陽光。</p>
-<p>而這，就是開發的日常。</p>
-<h2 id="什麼是「程式系統產品」？"><a href="#什麼是「程式系統產品」？" class="headerlink" title="什麼是「程式系統產品」？"></a>什麼是「程式系統產品」？</h2><p>這一章提到了一個很有趣的概念，也是我很喜歡的一張圖（Figure 1.1），解釋了為什麼我們寫一個能跑的「程式」（Program），跟做出一個能賣的「程式系統產品」（Programming Systems Product），所需的成本會有 <strong>9 倍</strong> 的差距。</p>
-<ul>
-<li><strong>Program</strong>：你自己寫爽的，能在你的機器上跑，能在你的腦袋裡運作。成本：1x。</li>
-<li><strong>Programming Product（程式產品）</strong>：要通用化、要測試、要有文件。成本：3x。</li>
-<li><strong>Programming System（程式系統）</strong>：要跟別的元件介接、要遵守介面規範、要整合測試。成本：3x。</li>
-<li><strong>Programming Systems Product（程式系統產品）</strong>：<strong>也就是我們每天在做的事</strong>。既要通用化又要系統化。3x * 3x &#x3D; <strong>9x</strong>。</li>
-</ul>
-<p>很多時候老闆（或是我們自己）都會誤判，以為把一個 Prototype 變成產品很快。別傻了，那個 9 倍的坑就在那裡等著你。</p>
-<h2 id="為什麼我們還在這裡？"><a href="#為什麼我們還在這裡？" class="headerlink" title="為什麼我們還在這裡？"></a>為什麼我們還在這裡？</h2><p>既然是焦油坑，那為什麼我們這群工程師還前仆後繼地跳進去？Brooks 列出了這個職業的 <strong>樂趣（Joys）</strong> 與 <strong>苦惱（Woes）</strong>。</p>
-<h3 id="職業的樂趣"><a href="#職業的樂趣" class="headerlink" title="職業的樂趣"></a>職業的樂趣</h3><ol>
-<li><strong>純粹的創造</strong>：就像上帝創造世界一樣，我們創造事物。</li>
-<li><strong>對他人有用</strong>：做出來的東西是真的有人在用的。</li>
-<li><strong>魔術般的魅力</strong>：看著一行行程式碼變成會動的畫面，那種成就感無可比擬。</li>
-<li><strong>持續學習</strong>：這個領域永遠不會重複，永遠有新東西。（雖然有時候這也是一種這折磨…）</li>
-<li><strong>易於駕馭的介質</strong>：我們的畫布是記憶體，我們的畫筆是鍵盤，我們可以憑空蓋出城堡，不需要磚瓦。</li>
-</ol>
-<h3 id="職業的苦惱"><a href="#職業的苦惱" class="headerlink" title="職業的苦惱"></a>職業的苦惱</h3><ol>
-<li><strong>追求完美</strong>：電腦是無情的，少一個分號就是跑不動。我們必須強迫自己追求完美。</li>
-<li><strong>依賴他人</strong>：你的程式跑不對，可能是 OS 的鍋，可能是 Library 的雷，甚至可能是同事的 API 文件沒寫好（或是根本沒寫）。</li>
-<li><strong>枯燥的除錯</strong>：設計是有趣的，但抓 Bug 是線性的、甚至是指數級的痛苦。</li>
-<li><strong>產品過時</strong>：當你終於把產品做出來，它可能已經過時了。</li>
-</ol>
-<h2 id="結語"><a href="#結語" class="headerlink" title="結語"></a>結語</h2><p>雖然我們常抱怨 Requirements 一直改、在那邊解幾百年前的 Legacy Code、或是為了別人的 Bug 加班到半夜。但說實話，當我們看著系統成功上線，解決了用戶的問題，那種「<strong>我在焦油坑裡存活下來了</strong>」的快感，或許就是讓我們離不開這個行業的原因吧。</p>
-<p>我們都是在焦油坑裡掙扎的巨獸，但偶爾，我們也能爬上岸，享受一下陽光。</p>
-<p>這是我讀完第一章的小小心得，如果你也在焦油坑裡，別忘了，你並不孤單。</p>
-]]></content>
-      <categories>
-        <category>加減讀點書系列</category>
-      </categories>
-      <tags>
-        <tag>人月神話</tag>
-        <tag>讀書心得</tag>
-      </tags>
-  </entry>
-  <entry>
     <title>如何處理 Kubernetes 無法 Pull 私有鏡像庫的問題?</title>
     <url>/2024/04/24/k8s-pulling-image-failed/</url>
     <content><![CDATA[<ul>
@@ -505,6 +272,281 @@
 ]]></content>
       <tags>
         <tag>Kubernetes</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>Message Queue 簡單介紹與比較</title>
+    <url>/2023/11/25/message-queue-introduce/</url>
+    <content><![CDATA[<h1 id="Message-Queue"><a href="#Message-Queue" class="headerlink" title="Message Queue"></a>Message Queue</h1><blockquote>
+<p>Message Queue 訊息佇列，既然資料結構如其名是 Queue，那麼 FIFO 先進先出的概念就得先了解。存放於 Queue 中的即是 Message。</p>
+</blockquote>
+<p>主要用途在於提供 <code>不同Process</code> 、 <code>不同Thread</code> 或是在微服務中各個 Service 之間的<strong>訊息溝通</strong>。</p>
+<p><img  
+                     lazyload
+                     src="/images/loading.svg"
+                     data-src="/../Images-Posts/2_MQ_Process.png"
+                      alt="MQ_Process"
+                ></p>
+<h2 id="Application-Intergration"><a href="#Application-Intergration" class="headerlink" title="Application Intergration"></a>Application Intergration</h2><blockquote>
+<p>在一個系統中，一般不會只有一隻程式在運作，而是會有多隻程式同時負責各種不同的任務，而程式之間難免會有互相傳遞資料進行處理的需求，而這類的需求，以下都統稱為 applcation 的整合。</p>
+</blockquote>
+<ul>
+<li><p>File Based Intergration</p>
+<p>Application 根據要處理的任務，產生檔案到特定的路徑。其中任務成功或失敗可以存放到不同 folder 中。而其他接收訊息的 application(或稱 process application) 則是不停監控該路徑有沒有新檔案產生，有則取出檔案進行處理。</p>
+</li>
+<li><p>Shared Database Intergration</p>
+<ol>
+<li>source application 收到新任務時，將資料寫入 db 中</li>
+<li>process application 監聽的對象從路徑中的檔案換成 database，若有新資料則進行處理</li>
+<li>process application 處理後將狀態寫回 db 中</li>
+</ol>
+</li>
+<li><p>Direct Connection Intergration</p>
+<ol>
+<li>source application 直接傳訊息給 process application</li>
+<li>可能透過 TCP&#x2F;IP 或是 named pipe connection 的方式傳遞資料</li>
+<li>傳遞資訊的資料格式並沒有限制，由連線兩端的 application 自訂，可以是純文字、XML 或 JSON。</li>
+</ol>
+</li>
+<li><p><strong>Asynchronous Message Broker (Message Queue)</strong></p>
+<ol>
+<li>不限傳遞資料格式</li>
+<li>需要額外 message queue middleware 協助，也會被稱作 message broker 或 message bus</li>
+<li>message broker 收到來自 source application 的訊息後，會轉發給 process application，而在這方式中，source application 與 process application 通常又各自被稱為 producer 與 consumer。</li>
+</ol>
+</li>
+</ul>
+<h2 id="特性-優勢"><a href="#特性-優勢" class="headerlink" title="特性 &amp; 優勢"></a>特性 &amp; 優勢</h2><p>Message Queue 最重要的能力在於<strong>非同步</strong>的特性，因為 Producers 發送訊息時不需即刻得到 Response 便可繼續執行其他事情。</p>
+<p>之於非同步的特性伴隨著的優勢便是解耦(Decouple)，開發人員就可以專心負責在屬於自己的區塊進行工作。除此之外 Producer 無需清楚 Consumer 的實際位置(IP Address 等等)，只需要將資料送往 Message Queue 就好，剩下的事情 Message Broker 會根據設定自行處理掉。</p>
+<p>再來高可用性，例如<strong>叢集的高可用性</strong>，當 Master 處於異常狀態時，會轉由 Slave 進行代理繼續提供服務。以確保服務的運行來提供叢集的高可用性。另外則是<strong>資料的高可用性</strong>，當 Message 送至 Queue 但服務發生異常(如 Consumer 消失時)，資料仍然可等到 Consumer 重新上線時再進行推送(Push)或是被拉取(Pull)，直到 Message 被正確消耗後會發出 Ack (Acknowledgement) 確認通知之後 Message 則會消失。</p>
+<p>最後則是 Scaling 擴展，如果突然遭遇大的流量，此時 queue 就提供了一個 buffer 的功能，能夠緩衝尖峰流量，在資源固定的情況下，能夠處理更多的任務，以時間換取資源！ 但有時訊息可能真的太多，產生的速度快於消耗的速度，或是你無法接受太長的 latency，此時 consumer process 就可以隨時增加多個，不會有衝突的風險</p>
+<p>另外，先進先出的佇列資料結構也直接確保了資料的有序性。</p>
+<h2 id="Use-Case"><a href="#Use-Case" class="headerlink" title="Use Case"></a>Use Case</h2><ul>
+<li><p><strong>延遲問題不重要的工作</strong></p>
+<p>寄送郵件這類工作，使用者可以接受信晚個幾秒，幾十秒甚至幾分鐘到時。意即資料不是由使用者寫入，使用者也不曉得資料何時應該要出現，延遲問題就不是那麼重要。</p>
+</li>
+<li><p><strong>大量運算的工作</strong></p>
+<p>比如說 image resizing 或是 video encoding 這類 CPU intensive 的工作，一來是使用者上傳完圖片影片，可能不需要等到這類都做完了你才跟他說 ok，二來是你也不會想讓這類工作 block 住或拖垮你的 web server 的效能．</p>
+</li>
+<li><p><strong>無法控制的工作</strong></p>
+<p>當你的工作需要協調許多資源才能完成時，有機會因為其中一個資源負載過重因而造成整個工作變得極度緩慢，尤其資源是外部的，所以你無法控制的時候。</p>
+</li>
+</ul>
+<h2 id="Kafka-與-RabbitMQ-的抉擇"><a href="#Kafka-與-RabbitMQ-的抉擇" class="headerlink" title="Kafka 與 RabbitMQ 的抉擇"></a>Kafka 與 RabbitMQ 的抉擇</h2><p>比較兩者之前應該先了解 Message Queue 分成兩種：</p>
+<ol>
+<li>Memory Based</li>
+<li>Log Based</li>
+</ol>
+<ul>
+<li><p><strong>Memory Based (RabbitMQ)</strong></p>
+<ul>
+<li>Message 是<strong>存放於 Memory</strong></li>
+<li>Consumer 發出 Ack(Acknowledgement) 確認 Message 取得後 Broker 則會直接刪除 Message</li>
+<li>Message 傳送方式是<code>推送(Push)</code></li>
+</ul>
+</li>
+<li><p><strong>Log Based (Kafka)</strong></p>
+<ul>
+<li>Message 進入後會直接<strong>寫到硬碟</strong>上，Consumer 消耗訊息時則是讀取檔案，直到讀到檔案資料的盡頭，接著繼續等候下一次通知。</li>
+<li>Message 傳送方式為<code>拉取(Pull)</code></li>
+</ul>
+</li>
+</ul>
+<blockquote>
+<p>Log Based 的讀寫速度限制則可透過將 topic 的 log 進行分區來進行改善，每個分區(Partition)由一台機器負責，並可獨立讀寫。</p>
+</blockquote>
+<p>了解了兩種基底的 MQ 差異後，接著了解他們兩者特性上的差異。</p>
+<p>先以簡易的比較表概括：</p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>RabbitMQ</th>
+<th>Kafka</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Load Balancing</td>
+<td>Yes</td>
+<td>Yes, but limited</td>
+</tr>
+<tr>
+<td>Fan-out</td>
+<td>Yes, through exchange binding</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Persistence</td>
+<td>Yes, through configuration</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Inorder delivery</td>
+<td>Yes, conditionally</td>
+<td>yes, per partition</td>
+</tr>
+</tbody></table>
+<ul>
+<li><p><code>Load Balancing(負載平衡)</code></p>
+<ul>
+<li><p><strong>Memory based</strong></p>
+<p>自然地 support 了 load balancing，當有 message 時， broker 輪流地向跟他有建立連結的 consumer 推送信息，就達成了 load balancing 的效果， 越多 consumer，就可以平行處理越多的工作。</p>
+</li>
+<li><p><strong>Log based</strong></p>
+<p>需透過方才提到的 Partition 方法來達成 load balancing。<br>例如一個 topic，並且將此 topic 的 partition 分成三份，此時就可以 assign 三個 consumer 給他。感覺上像是一個 topic 的 message 被提供給三個 consumer 拉取。但實際上則是每個 partition 對應到一個 consumer，便實現了平行處理，意即達到負載平衡。</p>
+</li>
+</ul>
+</li>
+<li><p><code>Fan-Out(扇形發送)</code></p>
+<ul>
+<li><p><strong>Memory based</strong></p>
+<p>需要透過額外的設計才能達成，透過 AMQP 協議的 exchange binding 可以實現 pub-sub。</p>
+</li>
+<li><p><strong>Log based</strong></p>
+<p>本身即為 fan-out，每個 consumer 對 log 檔案想讀哪就讀哪，想重複讀幾次就讀幾次</p>
+</li>
+</ul>
+</li>
+<li><p><code>Persistence(持續性)</code></p>
+<ul>
+<li><p><strong>Memory based</strong></p>
+<p>可透過設置將 Message 寫入硬碟作為 Backup 時使用，但僅保存到 Consumer 成功消耗之前。</p>
+</li>
+<li><p><strong>Log based</strong></p>
+<p>每個 message 都會寫入硬碟，除非刪掉它，否則會一直存在。</p>
+</li>
+</ul>
+</li>
+<li><p><code>Inorder delivery(有序發送)</code></p>
+<ul>
+<li><p><strong>Memory based</strong></p>
+<p>無法保證 message 一個一個按照順序的被處理，除非每一個 topic 只有一個 consumer。</p>
+</li>
+<li><p><strong>Log based</strong></p>
+<p>每個 partition 上的 message，一定是被 consumer 有序讀取，但不同 partition 之間就沒有順序的保證，他們理論上是各自獨立的。</p>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="最終選擇誰"><a href="#最終選擇誰" class="headerlink" title="最終選擇誰"></a>最終選擇誰</h2><p>需考慮下列三點</p>
+<ol>
+<li><p>資料是否需要被保存?</p>
+<ul>
+<li>需要保存鐵定是選擇 log based 的 MQ，也就是 Kafka。</li>
+</ul>
+</li>
+<li><p>資料有序性是否重要?</p>
+<ul>
+<li>針對系統開發的面向判斷是否需要維持資料的有序性，如果需要的話則需要選擇 Log Based。但這也僅限於同一個 Partition，若不同的話則無法保證順序。</li>
+</ul>
+</li>
+<li><p>工作耗損是否昂貴?</p>
+<ul>
+<li>log based 受限於需要多個 partition 來實現負載平衡來提升讀寫速度，建設上較為昂貴。</li>
+<li>同個 Partition 只要 Message 過多容易消耗更多時間，最後造成堵塞。</li>
+</ul>
+</li>
+</ol>
+]]></content>
+      <categories>
+        <category>Basic</category>
+      </categories>
+      <tags>
+        <tag>MicroService</tag>
+        <tag>MessageQueue</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>電影觀後心得：1988 上映的《飛進未來》</title>
+    <url>/2026/01/25/movie-big-review/</url>
+    <content><![CDATA[<p>最近在 Netflix 看到《飛進未來》這部片，乍看男主角有點眼熟，原來就是湯姆漢克啊……總之一開始其實是衝著我認識這男主角的關係，才按進了這部 1988 年的老片。</p>
+<p>一開始這歸類在喜劇我是有點莫名，直到看到 Susan 被 Josh 拉上彈簧床的那瞬間，我才明白被歸類在喜劇的原因 LOL</p>
+<p>不過這部片算是超乎預期的好看，尤其像我這種已經在職場打滾過一陣子，已經被磨平稜角這種人。後座力感覺又更強了一些。</p>
+<h2 id="許願機與一夜長大"><a href="#許願機與一夜長大" class="headerlink" title="許願機與一夜長大"></a>許願機與一夜長大</h2><p>這部劇情就是我們熟知的因緣際會變成大人了，這部的主角叫做 Josh，他在某個遊樂場對著一台許願機許願讓自己變成大人。隔天醒來，他真的變成了 30 歲。但，他只是肉體被拉長了，靈魂還是那個單純的 13 歲男孩。</p>
+<p>於是呢……他就和他的好朋友跑去紐約想要找到許願機，再次許願然後變回小孩。</p>
+<p>那個晚上他住在紐約聽到此起彼落的爭吵聲、眾多不懷好意的眼光、還有突然在街頭想起的槍響。他嚇得把門鎖好，扣上鎖鏈，然後把耳朵遮了起來。</p>
+<p>這段對我來說就像是剛出社會被受洗禮的時候一樣，不管是到了新城市、新環境，我都會有那種想把自己鎖進房間藏起來的時刻。</p>
+<p>但其實 Josh 過陣子就習慣了，他甚至還能聽著槍聲吃他的 Oreo、看著電視，絲毫不受影響。就和你我一樣出社會久了其實對那些職場上的紛爭或什麼的都很習慣。</p>
+<h2 id="玩具公司的-Susan-老闆"><a href="#玩具公司的-Susan-老闆" class="headerlink" title="玩具公司的 Susan &amp; 老闆"></a>玩具公司的 Susan &amp; 老闆</h2><p>Susan 其實不壞，她只是太習慣這個社會的遊戲規則。她知道怎麼展現優勢、怎麼利用手段在公司往上爬。對她來說，這就是「大人」該有的樣子：精明、世故、隨時處於備戰狀態。</p>
+<p>直到那天她遇到了 Josh。</p>
+<p>當她被拉上去跳著彈簧床的那一刻，防護罩破了。她笑得跟孩子一樣，那一刻她才發現自己內心深處還藏著一個 13 歲的小女孩。這也讓我想到那場經典的鋼琴戲，那個整天只想著營收數據的老闆，在跟 Josh 一起跳著地板鋼琴時，眼神裡那個單純熱愛玩具的靈魂也被喚醒了。</p>
+<p>我們大部分的人心裡其實都住著那個孩子，只是出社會久了，我們學會了穿上盔甲、忘了初心，甚至忘了自己原本的模樣。</p>
+<p>正是因為 Susan 被喚醒了這份純真，她才開始意識到身邊那些所謂的「菁英男友」有多麽乏味，也為接下來那句讓我起雞皮疙瘩的台詞埋下了伏筆。</p>
+<h2 id="Josh-是個成熟的大人"><a href="#Josh-是個成熟的大人" class="headerlink" title="Josh 是個成熟的大人"></a>Josh 是個成熟的大人</h2><p>整部片最讓我起雞皮疙瘩的，其實是一句看似普通的台詞。Susan 跟很愛嫉妒的男友要分手的時候，她男友講了些不好聽的話，Susan 只有冷冷的回：「Josh 是個成熟的大人」。</p>
+<p>這段真的非常有趣，畢竟你知我知獨眼龍也知，導演跟我們這群觀眾都知道：Josh 根本不是什麼成熟的大人，他就是個小孩。但為什麼在職場打滾多年的蘇珊會產生這種誤解？</p>
+<p>因為 Susan 身旁的那些「真大人」都太讓人疲憊了，就像 Susan 在派對上已經對那些話題感到厭倦一樣。</p>
+<p>我們所謂的「成熟」，往往意味著不理會流言蜚語、有話直說，但其實很多成熟的特質，都應對著小孩原有的純粹。</p>
+<p>總之 Susan 誤把 Josh 的「純真」讀解成了「世故後的從容」。</p>
+<p>當大家在會議室裡對著那個無聊變形機器人虛與委蛇的時候，只有 Josh 敢說：「我不懂，這個哪裡好玩？它變成了蟲，然後呢？」</p>
+<p><del>你看，這什麼 78 人</del></p>
+<p>原來在充滿算計的大人世界裡，「不玩心理戰」竟然變成了一種稀有的成熟特質、一針見血變成了專業及勇敢的特徵，假裝同意變成了出社會的必修。Josh 的「成熟」，來自於他根本不懂那些複雜的遊戲規則。他想玩跳跳床就玩、想吃玉米筍就專心吃、喜歡妳就直視妳的眼睛聽妳說話。</p>
+<p><del>我們這些自以為成熟的大人，到底是在哪個環節壞掉的啊？</del></p>
+<p>湯姆漢克這部片演得真的好，他不是在演一個「傻瓜」，而是在演一個「努力想適應大人世界的聰明小孩」。他眼裡的慌張跟好奇是乾淨的，這也是為什麼蘇珊會愛上他的原因。</p>
+<h2 id="成長的代價"><a href="#成長的代價" class="headerlink" title="成長的代價"></a>成長的代價</h2><p>電影的後半段，Josh 雖然有了錢、有了超大的公寓、有了愛情，但他被死黨點了一下才發現自己正在遺失某些東西（其實就是從電影中段他穿起西裝開始）。</p>
+<p>於是他開始想念家，想念那個還可以跟死黨無憂無慮打電動的日子。</p>
+<p>最後的分離之所以感人，是因為這段愛情註定無解。Susan 愛上的，是那個「住在大人身體裡的小孩靈魂」。一旦魔法解除，Josh 變回 13 歲，Susan 愛的那個人也就消失了。</p>
+<p>然而這也是我很愛 Susan 的原因，她就如 Josh 說的那樣，是他這輩子遇過最好的人。</p>
+<h2 id="結語"><a href="#結語" class="headerlink" title="結語"></a>結語</h2><p>長大這件事最殘忍的，不是變老，也不是責任變重。</p>
+<p>而是我們忘記了怎麼單純地因為一個玩具而大笑。</p>
+<p>也許真正的成熟，不是學會變得複雜，而是像 Josh 一樣，即便在這個不得不複雜的世界裡，還能試著保有那顆誠實面對自己的心。</p>
+<p>這是一部給大人看的童話，提醒我們：別為了扮演一個大人，而殺死了心裡那個 13 歲的孩子。</p>
+]]></content>
+      <categories>
+        <category>有感而發</category>
+      </categories>
+      <tags>
+        <tag>電影</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>人月神話（一）：我們都在焦油坑裡掙扎嗎？</title>
+    <url>/2026/01/23/mythical-man-month-ch1/</url>
+    <content><![CDATA[<p><img  
+                     lazyload
+                     src="/images/loading.svg"
+                     data-src="/../Images-Posts/mythical-man-month/effor-program-product-1.png"
+                      alt="Tar Pit"
+                ></p>
+<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>最近翻 linkedin 剛好看到有人推薦這本書：<strong>《人月神話》（The Mythical Man-Month）</strong>。</p>
+<p>問一問才發現原來這本書是號稱軟體工程界的聖經，所以想了想還是要撥點時間看吧？也許能給現在的自己有些什麼啟發。</p>
+<p>那就開啟了不知道會不會寫完的這本書的讀書心得吧…</p>
+<hr>
+<p>第一章的標題：<strong>焦油坑（The Tar Pit）</strong>。</p>
+<p>作者 Fred Brooks 引用了史前巨獸在焦油坑掙扎的場景：恐龍、猛獁象、劍齒虎，這些強大的生物在焦油中掙扎，越是猛烈，纏得越緊。最後，沒有誰能逃脫。</p>
+<p>但我們是人，我們可能會享受這個掙扎的過程。因為快樂總是伴隨著苦痛，而煩惱即是菩提。我們總在焦油坑裡掙扎，但偶爾，我們也能爬上岸，享受一下陽光。</p>
+<p>而這，就是開發的日常。</p>
+<h2 id="什麼是「程式系統產品」？"><a href="#什麼是「程式系統產品」？" class="headerlink" title="什麼是「程式系統產品」？"></a>什麼是「程式系統產品」？</h2><p>這一章提到了一個很有趣的概念，也是我很喜歡的一張圖（Figure 1.1），解釋了為什麼我們寫一個能跑的「程式」（Program），跟做出一個能賣的「程式系統產品」（Programming Systems Product），所需的成本會有 <strong>9 倍</strong> 的差距。</p>
+<ul>
+<li><strong>Program</strong>：你自己寫爽的，能在你的機器上跑，能在你的腦袋裡運作。成本：1x。</li>
+<li><strong>Programming Product（程式產品）</strong>：要通用化、要測試、要有文件。成本：3x。</li>
+<li><strong>Programming System（程式系統）</strong>：要跟別的元件介接、要遵守介面規範、要整合測試。成本：3x。</li>
+<li><strong>Programming Systems Product（程式系統產品）</strong>：<strong>也就是我們每天在做的事</strong>。既要通用化又要系統化。3x * 3x &#x3D; <strong>9x</strong>。</li>
+</ul>
+<p>很多時候老闆（或是我們自己）都會誤判，以為把一個 Prototype 變成產品很快。別傻了，那個 9 倍的坑就在那裡等著你。</p>
+<h2 id="為什麼我們還在這裡？"><a href="#為什麼我們還在這裡？" class="headerlink" title="為什麼我們還在這裡？"></a>為什麼我們還在這裡？</h2><p>既然是焦油坑，那為什麼我們這群工程師還前仆後繼地跳進去？Brooks 列出了這個職業的 <strong>樂趣（Joys）</strong> 與 <strong>苦惱（Woes）</strong>。</p>
+<h3 id="職業的樂趣"><a href="#職業的樂趣" class="headerlink" title="職業的樂趣"></a>職業的樂趣</h3><ol>
+<li><strong>純粹的創造</strong>：就像上帝創造世界一樣，我們創造事物。</li>
+<li><strong>對他人有用</strong>：做出來的東西是真的有人在用的。</li>
+<li><strong>魔術般的魅力</strong>：看著一行行程式碼變成會動的畫面，那種成就感無可比擬。</li>
+<li><strong>持續學習</strong>：這個領域永遠不會重複，永遠有新東西。（雖然有時候這也是一種這折磨…）</li>
+<li><strong>易於駕馭的介質</strong>：我們的畫布是記憶體，我們的畫筆是鍵盤，我們可以憑空蓋出城堡，不需要磚瓦。</li>
+</ol>
+<h3 id="職業的苦惱"><a href="#職業的苦惱" class="headerlink" title="職業的苦惱"></a>職業的苦惱</h3><ol>
+<li><strong>追求完美</strong>：電腦是無情的，少一個分號就是跑不動。我們必須強迫自己追求完美。</li>
+<li><strong>依賴他人</strong>：你的程式跑不對，可能是 OS 的鍋，可能是 Library 的雷，甚至可能是同事的 API 文件沒寫好（或是根本沒寫）。</li>
+<li><strong>枯燥的除錯</strong>：設計是有趣的，但抓 Bug 是線性的、甚至是指數級的痛苦。</li>
+<li><strong>產品過時</strong>：當你終於把產品做出來，它可能已經過時了。</li>
+</ol>
+<h2 id="結語"><a href="#結語" class="headerlink" title="結語"></a>結語</h2><p>雖然我們常抱怨 Requirements 一直改、在那邊解幾百年前的 Legacy Code、或是為了別人的 Bug 加班到半夜。但說實話，當我們看著系統成功上線，解決了用戶的問題，那種「<strong>我在焦油坑裡存活下來了</strong>」的快感，或許就是讓我們離不開這個行業的原因吧。</p>
+<p>我們都是在焦油坑裡掙扎的巨獸，但偶爾，我們也能爬上岸，享受一下陽光。</p>
+<p>這是我讀完第一章的小小心得，如果你也在焦油坑裡，別忘了，你並不孤單。</p>
+]]></content>
+      <categories>
+        <category>加減讀點書系列</category>
+      </categories>
+      <tags>
+        <tag>人月神話</tag>
+        <tag>讀書心得</tag>
       </tags>
   </entry>
   <entry>
@@ -698,7 +740,7 @@
                       alt="error"
                 ></p>
 <p>可以看到確實出現了 <code>ONLY_FULL_GROUP_BY</code> 的設定，也就是這個設定導致很多語法都無法『正常』執行。因此我們需要把它關閉。</p>
-<h2 id="關閉ONLY-FULL-GROUP-BY"><a href="#關閉ONLY-FULL-GROUP-BY" class="headerlink" title="關閉ONLY_FULL_GROUP_BY"></a>關閉<code>ONLY_FULL_GROUP_BY</code></h2><p>如果是 homebrew 安裝的 <a class="link"   href="mailto:&#x6d;&#x79;&#115;&#x71;&#x6c;&#64;&#53;&#x2e;&#55;" >&#x6d;&#x79;&#115;&#x71;&#x6c;&#64;&#53;&#x2e;&#55;<i class="fa-solid fa-arrow-up-right ml-[0.2em] font-light align-text-top text-[0.7em] link-icon"></i></a> 路徑，需編輯<code>/opt/homebrew/etc/my.cnf</code> 這個設定檔。並在裡面加入你需要開啟的 sql_mode。否則用下語法的方式每次重啟 mysql 都會恢復到預設設定。</p>
+<h2 id="關閉ONLY-FULL-GROUP-BY"><a href="#關閉ONLY-FULL-GROUP-BY" class="headerlink" title="關閉ONLY_FULL_GROUP_BY"></a>關閉<code>ONLY_FULL_GROUP_BY</code></h2><p>如果是 homebrew 安裝的 <a class="link"   href="mailto:&#109;&#121;&#x73;&#x71;&#x6c;&#x40;&#53;&#46;&#55;" >&#109;&#121;&#x73;&#x71;&#x6c;&#x40;&#53;&#46;&#55;<i class="fa-solid fa-arrow-up-right ml-[0.2em] font-light align-text-top text-[0.7em] link-icon"></i></a> 路徑，需編輯<code>/opt/homebrew/etc/my.cnf</code> 這個設定檔。並在裡面加入你需要開啟的 sql_mode。否則用下語法的方式每次重啟 mysql 都會恢復到預設設定。</p>
 <p>準備把下面這段設定貼到 config 中</p>
 <blockquote>
 <p><code>sql_mode = &quot;STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION”</code></p>
