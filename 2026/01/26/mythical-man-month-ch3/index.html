@@ -139,7 +139,7 @@
 <meta property="og:description" content="Just a workspace where to save my notes">
 <meta property="og:locale" content="zh_TW">
 <meta property="article:published_time" content="2026-01-26T04:30:00.000Z">
-<meta property="article:modified_time" content="2026-01-26T04:40:16.904Z">
+<meta property="article:modified_time" content="2026-01-26T04:43:08.132Z">
 <meta property="article:author" content="Larry Lai">
 <meta property="article:tag" content="人月神話">
 <meta property="article:tag" content="讀書心得">
@@ -497,8 +497,8 @@
     
         <span class="article-date article-meta-item">
             <i class="fa-regular fa-wrench"></i>&nbsp;
-            <span class="desktop">2026-01-26 12:40:16</span>
-            <span class="mobile">2026-01-26 12:40:16</span>
+            <span class="desktop">2026-01-26 12:43:08</span>
+            <span class="mobile">2026-01-26 12:43:08</span>
             <span class="hover-info">更新</span>
         </span>
     
@@ -584,30 +584,50 @@
     end</pre>
 
 <h2 id="那些讓你看不懂的角色對照表"><a href="#那些讓你看不懂的角色對照表" class="headerlink" title="那些讓你看不懂的角色對照表"></a>那些讓你看不懂的角色對照表</h2><p>書中洋洋灑灑寫了一堆分工解釋得很複雜，但根據上面我整理的圖，搭配下面職位解釋，應該就相當清楚了。</p>
-<ul>
-<li><p><strong>外科醫生 (The Surgeon) —— 【核心架構師 &#x2F; Tech Lead】</strong></p>
-<p>他是老大，負責寫<strong>最核心的程式碼</strong>，並做所有技術決定。</p>
-<p>這章強調：<strong>整個系統的概念必須來自「一個人的腦袋」，才能保持一致性（Conceptual Integrity）。</strong></p>
-</li>
-<li><p><strong>副手 (The Copilot) —— 【資深工程師 &#x2F; Code Reviewer】</strong></p>
-<p>他是外科醫生的備份，能理解所有程式碼，也能隨時接手，但他是來「輔佐」而非「競爭」的。他主要負責思考、討論、以及分擔程式碼撰寫，但他寫的碼最終還是要經過外科醫生的認可（或者說風格要一致）。</p>
-</li>
-<li><p><strong>管理員 (The Administrator) —— 【專案經理 (PM)】</strong></p>
-<p>負責處理錢、人事、排程，讓外科醫生不用分心去管行政雜務。</p>
-</li>
-<li><p><strong>編輯 (The Editor) &amp; 秘書 (Secretaries) —— 【技術文件撰寫 &#x2F; 文書處理】</strong></p>
-<p>負責把外科醫生的草稿變成正式文件。現在很多時候這也是工程師自己兼著做，或者有專門的 Technical Writer。</p>
-</li>
-<li><p><strong>碼農 (The Program Clerk) —— 【Git &#x2F; 版本控制系統】</strong></p>
-<p>這個角色在現代看來最過時。在 1970 年代，程式碼是寫在紙上或打孔卡上的，需要專人管理實體的檔案櫃。現在這個工作已經被 GitHub &#x2F; GitLab 取代了。可以想像以前 push code 是要把一疊卡片拿給一個人去歸檔…</p>
-</li>
-<li><p><strong>工具維護人 (The Toolsmith) —— 【DevOps &#x2F; 平台工程師】</strong></p>
-<p>負責維護編譯器、測試環境，確保外科醫生的電腦和工具隨時順手好用。</p>
-</li>
-<li><p><strong>測試人員 (The Tester) —— 【QA &#x2F; 測試工程師】</strong></p>
-<p>專門設計測試案例來找外科醫生的麻煩（Bug）。</p>
-</li>
-</ul>
+<table>
+<thead>
+<tr>
+<th align="left">角色 (Role)</th>
+<th align="left">現代對應 (Modern Equivalent)</th>
+<th align="left">職責說明 (Responsibilities)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left"><strong>外科醫生 (The Surgeon)</strong></td>
+<td align="left"><strong>核心架構師 &#x2F; Tech Lead</strong></td>
+<td align="left">他是老大，負責寫<strong>最核心的程式碼</strong>，並做所有技術決定。<br>強調：<strong>整個系統的概念必須來自「一個人的腦袋」，才能保持一致性（Conceptual Integrity）。</strong></td>
+</tr>
+<tr>
+<td align="left"><strong>副手 (The Copilot)</strong></td>
+<td align="left"><strong>資深工程師 &#x2F; Code Reviewer</strong></td>
+<td align="left">他是外科醫生的備份，能理解所有程式碼，也能隨時接手，但他是來「輔佐」而非「競爭」的。他主要負責思考、討論、以及分擔程式碼撰寫，但他寫的碼最終還是要經過外科醫生的認可。</td>
+</tr>
+<tr>
+<td align="left"><strong>管理員 (The Administrator)</strong></td>
+<td align="left"><strong>專案經理 (PM)</strong></td>
+<td align="left">負責處理錢、人事、排程，讓外科醫生不用分心去管行政雜務。</td>
+</tr>
+<tr>
+<td align="left"><strong>編輯 (The Editor) &amp; 秘書</strong></td>
+<td align="left"><strong>技術文件撰寫 &#x2F; 文書處理</strong></td>
+<td align="left">負責把外科醫生的草稿變成正式文件。現在很多時候這也是工程師自己兼著做，或者有專門的 Technical Writer。</td>
+</tr>
+<tr>
+<td align="left"><strong>碼農 (The Program Clerk)</strong></td>
+<td align="left"><strong>Git &#x2F; 版本控制系統</strong></td>
+<td align="left">這個角色在現代看來最過時。在 70 年代，程式碼是寫在紙上或打孔卡上的，需要專人管理實體的檔案櫃。現在這個工作已經被 GitHub &#x2F; GitLab 取代了。</td>
+</tr>
+<tr>
+<td align="left"><strong>工具維護人 (The Toolsmith)</strong></td>
+<td align="left"><strong>DevOps &#x2F; 平台工程師</strong></td>
+<td align="left">負責維護編譯器、測試環境，確保外科醫生的電腦和工具隨時順手好用。</td>
+</tr>
+<tr>
+<td align="left"><strong>測試人員 (The Tester)</strong></td>
+<td align="left"><strong>QA &#x2F; 測試工程師</strong></td>
+<td align="left">專門設計測試案例來找外科醫生的麻煩（Bug）。</td>
+</tr>
+</tbody></table>
 <h2 id="結語"><a href="#結語" class="headerlink" title="結語"></a>結語</h2><p>這章看起來很亂，列了一堆職位，其實只講了一件事：</p>
 <p><strong>為了保證軟體設計的「概念完整性」（Conceptual Integrity）：團隊應該是「一主多從」的結構，而不是「人人平等」的結構。</strong></p>
 <p>就像 Apple 的產品之所以風格統一，是因為背後有強大的意志（Jobs&#x2F;Ive）在主導。如果軟體設計變成民主投票，每個人都把自己的想法加進去，最後做出來的一定是四不像。</p>
@@ -628,7 +648,7 @@
         
             <li>
                 <strong>更新於
-                    :</strong> 2026-01-26 12:40:16
+                    :</strong> 2026-01-26 12:43:08
             </li>
         
         <li>
