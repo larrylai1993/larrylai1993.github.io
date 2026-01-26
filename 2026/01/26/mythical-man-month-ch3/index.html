@@ -561,7 +561,27 @@
 <p>如果大家都搶著動刀，手術絕對會亂套。</p>
 <p>其他人的存在，是為了讓主刀醫師能<strong>心無旁騖地開刀</strong>，不用去管擦汗、遞剪刀、確認病人血壓這些瑣事。而在軟體開發中，這些「瑣事」可能就是寫文件、測 Bug、維護工具、或是處理行政流程。</p>
 <h2 id="組織分工示意圖"><a href="#組織分工示意圖" class="headerlink" title="組織分工示意圖"></a>組織分工示意圖</h2><p>我們可以把這個概念畫成一張圖，中間的核心就是那位「外科醫生」：</p>
-<div class="code-container" data-rel="Plaintext"><figure class="iseeu highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">graph TD</span><br><span class="line">    Surgeon[&quot;&lt;b&gt;外科醫生 (The Surgeon)&lt;/b&gt;&lt;br&gt;核心架構師 / Tech Lead&quot;]</span><br><span class="line">    Copilot[&quot;&lt;b&gt;副手 (The Copilot)&lt;/b&gt;&lt;br&gt;資深工程師 / Code Reviewer&quot;]</span><br><span class="line">    Admin[&quot;&lt;b&gt;管理員 (The Administrator)&lt;/b&gt;&lt;br&gt;專案經理 (PM)&quot;]</span><br><span class="line">    Editor[&quot;&lt;b&gt;編輯 (The Editor)&lt;/b&gt;&lt;br&gt;技術文件撰寫&quot;]</span><br><span class="line">    Clerk[&quot;&lt;b&gt;碼農 (The Program Clerk)&lt;/b&gt;&lt;br&gt;Git / 版本控制&quot;]</span><br><span class="line">    Toolsmith[&quot;&lt;b&gt;工具維護人 (The Toolsmith)&lt;/b&gt;&lt;br&gt;DevOps / 平台工程師&quot;]</span><br><span class="line">    Tester[&quot;&lt;b&gt;測試人員 (The Tester)&lt;/b&gt;&lt;br&gt;QA / 測試工程師&quot;]</span><br><span class="line"></span><br><span class="line">    Surgeon --&gt; Copilot</span><br><span class="line">    Surgeon --&gt; Admin</span><br><span class="line"></span><br><span class="line">    subgraph Technical [&quot;技術支援 (Technical Support)&quot;]</span><br><span class="line">        Copilot --&gt; Toolsmith</span><br><span class="line">        Copilot --&gt; Tester</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph Administrative [&quot;行政支援 (Admin Support)&quot;]</span><br><span class="line">        Admin --&gt; Editor</span><br><span class="line">        Admin --&gt; Clerk</span><br><span class="line">    end</span><br></pre></td></tr></table></figure></div>
+<pre class="mermaid">graph TD
+    Surgeon["<b>外科醫生 (The Surgeon)</b><br>核心架構師 / Tech Lead"]
+    Copilot["<b>副手 (The Copilot)</b><br>資深工程師 / Code Reviewer"]
+    Admin["<b>管理員 (The Administrator)</b><br>專案經理 (PM)"]
+    Editor["<b>編輯 (The Editor)</b><br>技術文件撰寫"]
+    Clerk["<b>碼農 (The Program Clerk)</b><br>Git / 版本控制"]
+    Toolsmith["<b>工具維護人 (The Toolsmith)</b><br>DevOps / 平台工程師"]
+    Tester["<b>測試人員 (The Tester)</b><br>QA / 測試工程師"]
+
+    Surgeon --> Copilot
+    Surgeon --> Admin
+
+    subgraph Technical ["技術支援 (Technical Support)"]
+        Copilot --> Toolsmith
+        Copilot --> Tester
+    end
+
+    subgraph Administrative ["行政支援 (Admin Support)"]
+        Admin --> Editor
+        Admin --> Clerk
+    end</pre>
 
 <h2 id="那些讓你看不懂的角色對照表"><a href="#那些讓你看不懂的角色對照表" class="headerlink" title="那些讓你看不懂的角色對照表"></a>那些讓你看不懂的角色對照表</h2><p>書中洋洋灑灑寫了一堆分工解釋得很複雜，但根據上面我整理的圖，搭配下面職位解釋，應該就相當清楚了。</p>
 <h3 id="外科醫生-The-Surgeon-——-【核心架構師-Tech-Lead】"><a href="#外科醫生-The-Surgeon-——-【核心架構師-Tech-Lead】" class="headerlink" title="外科醫生 (The Surgeon) —— 【核心架構師 &#x2F; Tech Lead】"></a>外科醫生 (The Surgeon) —— 【核心架構師 &#x2F; Tech Lead】</h3><p>他是老大，負責寫<strong>最核心的程式碼</strong>，並做所有技術決定。</p>
