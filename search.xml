@@ -1,6 +1,89 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>如何處理 Kubernetes 無法 Pull 私有鏡像庫的問題?</title>
+    <url>/2024/04/24/k8s-pulling-image-failed/</url>
+    <content><![CDATA[<ul>
+<li><a href="#%E7%A7%81%E6%9C%89%E9%8F%A1%E5%83%8F%E5%BA%AB%E7%84%A1%E6%B3%95%E6%8B%89%E5%8F%96">私有鏡像庫無法拉取</a><ul>
+<li><a href="#docker">Docker</a></li>
+<li><a href="#k8s-containerd">K8S Containerd</a></li>
+<li><a href="#pod-%E5%A4%B1%E6%95%97-images-%E7%84%A1%E6%B3%95%E6%88%90%E5%8A%9F%E6%8B%89%E5%8F%96">POD 失敗, Images 無法成功拉取</a></li>
+</ul>
+</li>
+</ul>
+<h2 id="私有鏡像庫無法拉取"><a href="#私有鏡像庫無法拉取" class="headerlink" title="私有鏡像庫無法拉取"></a>私有鏡像庫無法拉取</h2><p>Private Image Repository 通常會因為不安全的關係而導致無法正常拉取。所以在拉取之前需要先行設定。這件事情分成兩個面向，也因此有兩個地方要進行設定。</p>
+<h3 id="Docker"><a href="#Docker" class="headerlink" title="Docker"></a>Docker</h3><p><strong>透過 docker pull image 來取得 Image</strong></p>
+<ul>
+<li><p>將不信任的鏡像庫加入到信任清單中</p>
+<p>需要先調整 docker 的設定檔，信任這個私有的 Repository。我們可以先進入 <code>/etc/docker</code>。進入後如果沒有 <code>daemon.json</code> 則需要自行建立。</p>
+<div class="code-container" data-rel="Json"><figure class="iseeu highlight json"><table><tr><td class="code"><pre><span class="line"><span class="comment">// IP和PORT自行更換</span></span><br><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;insecure-registries&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="string">&quot;[IP]:[PORT]&quot;</span><span class="punctuation">]</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure></div>
+</li>
+<li><p>調整 docker.service 啟動帶入的參數</p>
+<ul>
+<li><code>sudo vi /usr/lib/systemd/system/docker.service</code></li>
+<li>在 restart&#x3D;always 下方加入 <code>EnvironmentFile=/etc/docker/daemon.json</code></li>
+</ul>
+</li>
+<li><p>重啟 docker.service</p>
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">sudo systemctl daemon-reload</span><br><span class="line">systemctl restart docker.service</span><br><span class="line">systemctl status docker.service</span><br></pre></td></tr></table></figure></div>
+</li>
+<li><p>執行登入</p>
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">sudo docker login [IP:Port] -u [UserName]</span><br></pre></td></tr></table></figure></div>
+</li>
+<li><p>Pull Image</p>
+<div class="code-container" data-rel="Plaintext"><figure class="iseeu highlight plaintext"><table><tr><td class="code"><pre><span class="line">docker pull [IP:Port]/[Image Name]:[tag]</span><br></pre></td></tr></table></figure></div></li>
+</ul>
+<h3 id="K8S-Containerd"><a href="#K8S-Containerd" class="headerlink" title="K8S Containerd"></a>K8S Containerd</h3><p>因為剛才已經利用 docker pull 拉取過 Image。在後續的 yaml 檔中，我們都需要有個認證能夠讓 K8S 使用，而非透過在每一個 Worker node 執行 docker login 。</p>
+<p>在這裡我們使用剛才 docker login 所產生的檔案來建立 K8S 的 Secret File。或不利用檔案而是指定好帳號密碼來產生 Secret File。</p>
+<ul>
+<li><p>產生 secret</p>
+<ol>
+<li>利用 docker login 產生的檔案</li>
+</ol>
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">kubectl create secret generic regcred \</span><br><span class="line">--from-file=.dockerconfigjson=autoConf.json \</span><br><span class="line">--<span class="built_in">type</span>=kubernetes.io/dockerconfigjson</span><br></pre></td></tr></table></figure></div>
+
+<ol start="2">
+<li>自行輸入資訊產生</li>
+</ol>
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">kubectl create secret docker-registry insecure-registry \ --docker-server=[IP:Port] --docker-username=[User Name] \ --docker-password=&#x27;[Password]&#x27; --docker-email=[User Email]</span><br></pre></td></tr></table></figure></div>
+
+<p>可以嘗試使用上面任一種方式產生，或兩種都行。在產生 Secret 後執行下面的語法，在<code>Auth</code>的欄位應該要完全相同。</p>
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">kubectl get secret [Secret Name] --output=&quot;jsonpath=&#123;.data.\.dockerconfigjson&#125;&quot; | base64 --decode</span><br></pre></td></tr></table></figure></div>
+
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line"># decode opaque</span><br><span class="line">kubectl get secrets/mongodb-secret --template=&#x27;&#123;&#123; index .data &quot;填入secret內欄位的名稱&quot; | base64decode&#125;&#125;&#x27;</span><br></pre></td></tr></table></figure></div>
+</li>
+<li><p>產生 secret 之後將其套用進 deploy yaml 中。</p>
+<div class="code-container" data-rel="Yaml"><figure class="iseeu highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">apps/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">dockerdemo-deployment</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">app:</span> <span class="string">uat-example</span></span><br><span class="line">  <span class="attr">replicas:</span> <span class="number">3</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">metadata:</span></span><br><span class="line">      <span class="attr">labels:</span></span><br><span class="line">        <span class="attr">app:</span> <span class="string">uat-example</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">uat-example-api</span></span><br><span class="line">          <span class="attr">image:</span> <span class="number">10.1</span><span class="number">.23</span><span class="number">.49</span><span class="string">:8082/example-api:dev</span></span><br><span class="line">          <span class="attr">imagePullPolicy:</span> <span class="string">IfNotPresent</span></span><br><span class="line">          <span class="attr">ports:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">8034</span></span><br><span class="line">      <span class="attr">imagePullSecrets:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">regcred</span> <span class="comment">#secret name</span></span><br></pre></td></tr></table></figure></div>
+</li>
+<li><p>k8s deploy</p>
+<pre><code> kubectl apply -f [File Name]
+</code></pre>
+</li>
+</ul>
+<h3 id="POD-失敗-Images-無法成功拉取"><a href="#POD-失敗-Images-無法成功拉取" class="headerlink" title="POD 失敗, Images 無法成功拉取"></a>POD 失敗, Images 無法成功拉取</h3><p>這時候可能會遭遇到問題，當你執行 <code>kubectl get pods</code> 的時候會發現沒有任何一個 pod 被啟動成功。再次執行 <code>kubectl describe pods [pod name]</code> 則會看見：</p>
+<blockquote>
+<p>錯誤訊息：http: server gave HTTP response to HTTPS client 的相關錯誤</p>
+</blockquote>
+<p>你可能會好奇，我 docker pull image 都能成功了，為什麼由 k8s 執行 pull 反而就失敗了？</p>
+<p>原因是因為 K8S 是透過使用 Container Runtime Interface（CRI）作為介面與容器執行時引擎（container runtime）進行通信。而在我們這個架構，我們的 CRI 是 Containerd，所以要為 Containerd 加入 Registry 的映射。</p>
+<ol>
+<li><p>進入<code>/etc/containerd</code>，開啟 <code>config.toml</code>，如果沒有則自行建立。</p>
+</li>
+<li><p>在裡面填入</p>
+<div class="code-container" data-rel="Toml"><figure class="iseeu highlight toml"><table><tr><td class="code"><pre><span class="line"><span class="comment"># Config file is parsed as version 1 by default.</span></span><br><span class="line"><span class="comment"># To use the long form of plugin names set &quot;version = 2&quot;</span></span><br><span class="line"><span class="section">[plugins.cri.registry.mirrors]</span></span><br><span class="line">  <span class="section">[plugins.cri.registry.mirrors.&quot;IP:PORT&quot;]</span></span><br><span class="line">    <span class="attr">endpoint</span> = [<span class="string">&quot;http://IP:PORT&quot;</span>]</span><br></pre></td></tr></table></figure></div>
+
+<p>這個用意是指當遇到指定的 IP 和 PORT 的時候，轉成使用<code>http</code>去呼叫，而非預設的<code>https</code>。</p>
+</li>
+<li><p>重啟 containerd</p>
+<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">sudo systemctl restart containerd</span><br></pre></td></tr></table></figure></div></li>
+</ol>
+<p>接著刪除原本的 deploy，重新 apply 一次就可以正常拉取 image。</p>
+]]></content>
+      <tags>
+        <tag>Kubernetes</tag>
+      </tags>
+  </entry>
+  <entry>
     <title>Kubernetes 介紹與使用KIND簡單建置Cluster/Local Registry</title>
     <url>/2023/11/24/k8s-introduce-1/</url>
     <content><![CDATA[<h1 id="Kubernetes-K8S"><a href="#Kubernetes-K8S" class="headerlink" title="Kubernetes(K8S)"></a>Kubernetes(K8S)</h1><p>Kubernetes 是一個協助我們自動化部署、擴張以及管理容器應用程式(containerized applications)的系統。相較於需要手動部署每個容器化應用程式(containers)到每台機器上，</p>
@@ -186,89 +269,6 @@
 
 <p>透過 <code>docker ps</code> 可以看見 K8S 的 Container 的 30000 port 是對應到 Host 的哪個 Port 對外開放。得知之後只要在 Host 的 Browser 進入 127.0.0.1:[<strong>Port</strong>] 就能看見 Hello World!。</p>
 <h2 id="常用指令"><a href="#常用指令" class="headerlink" title="常用指令"></a>常用指令</h2><div class="code-container" data-rel="Bash"><figure class="iseeu highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># get image list in kind (cluster1 叢集名稱)</span></span><br><span class="line">docker <span class="built_in">exec</span> -it cluster1-worker crictl image</span><br><span class="line"></span><br><span class="line"><span class="comment"># load image to k8s cluster</span></span><br><span class="line">kind load docker-image redis:latest</span><br><span class="line"></span><br><span class="line"><span class="comment"># get login token</span></span><br><span class="line">kubectl create token default</span><br><span class="line"></span><br><span class="line"><span class="comment"># get cluster info</span></span><br><span class="line">kubectl cluster-info</span><br><span class="line"></span><br><span class="line"><span class="comment"># get cluster config</span></span><br><span class="line">kubectl config view</span><br><span class="line"></span><br></pre></td></tr></table></figure></div>
-]]></content>
-      <tags>
-        <tag>Kubernetes</tag>
-      </tags>
-  </entry>
-  <entry>
-    <title>如何處理 Kubernetes 無法 Pull 私有鏡像庫的問題?</title>
-    <url>/2024/04/24/k8s-pulling-image-failed/</url>
-    <content><![CDATA[<ul>
-<li><a href="#%E7%A7%81%E6%9C%89%E9%8F%A1%E5%83%8F%E5%BA%AB%E7%84%A1%E6%B3%95%E6%8B%89%E5%8F%96">私有鏡像庫無法拉取</a><ul>
-<li><a href="#docker">Docker</a></li>
-<li><a href="#k8s-containerd">K8S Containerd</a></li>
-<li><a href="#pod-%E5%A4%B1%E6%95%97-images-%E7%84%A1%E6%B3%95%E6%88%90%E5%8A%9F%E6%8B%89%E5%8F%96">POD 失敗, Images 無法成功拉取</a></li>
-</ul>
-</li>
-</ul>
-<h2 id="私有鏡像庫無法拉取"><a href="#私有鏡像庫無法拉取" class="headerlink" title="私有鏡像庫無法拉取"></a>私有鏡像庫無法拉取</h2><p>Private Image Repository 通常會因為不安全的關係而導致無法正常拉取。所以在拉取之前需要先行設定。這件事情分成兩個面向，也因此有兩個地方要進行設定。</p>
-<h3 id="Docker"><a href="#Docker" class="headerlink" title="Docker"></a>Docker</h3><p><strong>透過 docker pull image 來取得 Image</strong></p>
-<ul>
-<li><p>將不信任的鏡像庫加入到信任清單中</p>
-<p>需要先調整 docker 的設定檔，信任這個私有的 Repository。我們可以先進入 <code>/etc/docker</code>。進入後如果沒有 <code>daemon.json</code> 則需要自行建立。</p>
-<div class="code-container" data-rel="Json"><figure class="iseeu highlight json"><table><tr><td class="code"><pre><span class="line"><span class="comment">// IP和PORT自行更換</span></span><br><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;insecure-registries&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="string">&quot;[IP]:[PORT]&quot;</span><span class="punctuation">]</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure></div>
-</li>
-<li><p>調整 docker.service 啟動帶入的參數</p>
-<ul>
-<li><code>sudo vi /usr/lib/systemd/system/docker.service</code></li>
-<li>在 restart&#x3D;always 下方加入 <code>EnvironmentFile=/etc/docker/daemon.json</code></li>
-</ul>
-</li>
-<li><p>重啟 docker.service</p>
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">sudo systemctl daemon-reload</span><br><span class="line">systemctl restart docker.service</span><br><span class="line">systemctl status docker.service</span><br></pre></td></tr></table></figure></div>
-</li>
-<li><p>執行登入</p>
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">sudo docker login [IP:Port] -u [UserName]</span><br></pre></td></tr></table></figure></div>
-</li>
-<li><p>Pull Image</p>
-<div class="code-container" data-rel="Plaintext"><figure class="iseeu highlight plaintext"><table><tr><td class="code"><pre><span class="line">docker pull [IP:Port]/[Image Name]:[tag]</span><br></pre></td></tr></table></figure></div></li>
-</ul>
-<h3 id="K8S-Containerd"><a href="#K8S-Containerd" class="headerlink" title="K8S Containerd"></a>K8S Containerd</h3><p>因為剛才已經利用 docker pull 拉取過 Image。在後續的 yaml 檔中，我們都需要有個認證能夠讓 K8S 使用，而非透過在每一個 Worker node 執行 docker login 。</p>
-<p>在這裡我們使用剛才 docker login 所產生的檔案來建立 K8S 的 Secret File。或不利用檔案而是指定好帳號密碼來產生 Secret File。</p>
-<ul>
-<li><p>產生 secret</p>
-<ol>
-<li>利用 docker login 產生的檔案</li>
-</ol>
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">kubectl create secret generic regcred \</span><br><span class="line">--from-file=.dockerconfigjson=autoConf.json \</span><br><span class="line">--<span class="built_in">type</span>=kubernetes.io/dockerconfigjson</span><br></pre></td></tr></table></figure></div>
-
-<ol start="2">
-<li>自行輸入資訊產生</li>
-</ol>
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">kubectl create secret docker-registry insecure-registry \ --docker-server=[IP:Port] --docker-username=[User Name] \ --docker-password=&#x27;[Password]&#x27; --docker-email=[User Email]</span><br></pre></td></tr></table></figure></div>
-
-<p>可以嘗試使用上面任一種方式產生，或兩種都行。在產生 Secret 後執行下面的語法，在<code>Auth</code>的欄位應該要完全相同。</p>
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">kubectl get secret [Secret Name] --output=&quot;jsonpath=&#123;.data.\.dockerconfigjson&#125;&quot; | base64 --decode</span><br></pre></td></tr></table></figure></div>
-
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line"># decode opaque</span><br><span class="line">kubectl get secrets/mongodb-secret --template=&#x27;&#123;&#123; index .data &quot;填入secret內欄位的名稱&quot; | base64decode&#125;&#125;&#x27;</span><br></pre></td></tr></table></figure></div>
-</li>
-<li><p>產生 secret 之後將其套用進 deploy yaml 中。</p>
-<div class="code-container" data-rel="Yaml"><figure class="iseeu highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">apps/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">dockerdemo-deployment</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">app:</span> <span class="string">uat-example</span></span><br><span class="line">  <span class="attr">replicas:</span> <span class="number">3</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">metadata:</span></span><br><span class="line">      <span class="attr">labels:</span></span><br><span class="line">        <span class="attr">app:</span> <span class="string">uat-example</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">uat-example-api</span></span><br><span class="line">          <span class="attr">image:</span> <span class="number">10.1</span><span class="number">.23</span><span class="number">.49</span><span class="string">:8082/example-api:dev</span></span><br><span class="line">          <span class="attr">imagePullPolicy:</span> <span class="string">IfNotPresent</span></span><br><span class="line">          <span class="attr">ports:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">8034</span></span><br><span class="line">      <span class="attr">imagePullSecrets:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">regcred</span> <span class="comment">#secret name</span></span><br></pre></td></tr></table></figure></div>
-</li>
-<li><p>k8s deploy</p>
-<pre><code> kubectl apply -f [File Name]
-</code></pre>
-</li>
-</ul>
-<h3 id="POD-失敗-Images-無法成功拉取"><a href="#POD-失敗-Images-無法成功拉取" class="headerlink" title="POD 失敗, Images 無法成功拉取"></a>POD 失敗, Images 無法成功拉取</h3><p>這時候可能會遭遇到問題，當你執行 <code>kubectl get pods</code> 的時候會發現沒有任何一個 pod 被啟動成功。再次執行 <code>kubectl describe pods [pod name]</code> 則會看見：</p>
-<blockquote>
-<p>錯誤訊息：http: server gave HTTP response to HTTPS client 的相關錯誤</p>
-</blockquote>
-<p>你可能會好奇，我 docker pull image 都能成功了，為什麼由 k8s 執行 pull 反而就失敗了？</p>
-<p>原因是因為 K8S 是透過使用 Container Runtime Interface（CRI）作為介面與容器執行時引擎（container runtime）進行通信。而在我們這個架構，我們的 CRI 是 Containerd，所以要為 Containerd 加入 Registry 的映射。</p>
-<ol>
-<li><p>進入<code>/etc/containerd</code>，開啟 <code>config.toml</code>，如果沒有則自行建立。</p>
-</li>
-<li><p>在裡面填入</p>
-<div class="code-container" data-rel="Toml"><figure class="iseeu highlight toml"><table><tr><td class="code"><pre><span class="line"><span class="comment"># Config file is parsed as version 1 by default.</span></span><br><span class="line"><span class="comment"># To use the long form of plugin names set &quot;version = 2&quot;</span></span><br><span class="line"><span class="section">[plugins.cri.registry.mirrors]</span></span><br><span class="line">  <span class="section">[plugins.cri.registry.mirrors.&quot;IP:PORT&quot;]</span></span><br><span class="line">    <span class="attr">endpoint</span> = [<span class="string">&quot;http://IP:PORT&quot;</span>]</span><br></pre></td></tr></table></figure></div>
-
-<p>這個用意是指當遇到指定的 IP 和 PORT 的時候，轉成使用<code>http</code>去呼叫，而非預設的<code>https</code>。</p>
-</li>
-<li><p>重啟 containerd</p>
-<div class="code-container" data-rel="Cmd"><figure class="iseeu highlight cmd"><table><tr><td class="code"><pre><span class="line">sudo systemctl restart containerd</span><br></pre></td></tr></table></figure></div></li>
-</ol>
-<p>接著刪除原本的 deploy，重新 apply 一次就可以正常拉取 image。</p>
 ]]></content>
       <tags>
         <tag>Kubernetes</tag>
@@ -499,57 +499,6 @@
       </tags>
   </entry>
   <entry>
-    <title>人月神話（一）：我們都在焦油坑裡掙扎嗎？</title>
-    <url>/2026/01/23/mythical-man-month-ch1/</url>
-    <content><![CDATA[<p><img  
-                     lazyload
-                     src="/images/loading.svg"
-                     data-src="/../Images-Posts/mythical-man-month/effor-program-product-1.png"
-                      alt="Tar Pit"
-                ></p>
-<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>最近翻 linkedin 剛好看到有人推薦這本書：<strong>《人月神話》（The Mythical Man-Month）</strong>。</p>
-<p>問一問才發現原來這本書是號稱軟體工程界的聖經，所以想了想還是要撥點時間看吧？也許能給現在的自己有些什麼啟發。</p>
-<p>那就開啟了不知道會不會寫完的這本書的讀書心得吧…</p>
-<hr>
-<p>第一章的標題：<strong>焦油坑（The Tar Pit）</strong>。</p>
-<p>作者 Fred Brooks 引用了史前巨獸在焦油坑掙扎的場景：恐龍、猛獁象、劍齒虎，這些強大的生物在焦油中掙扎，越是猛烈，纏得越緊。最後，沒有誰能逃脫。</p>
-<p>但我們是人，我們可能會享受這個掙扎的過程。因為快樂總是伴隨著苦痛，而煩惱即是菩提。我們總在焦油坑裡掙扎，但偶爾，我們也能爬上岸，享受一下陽光。</p>
-<p>而這，就是開發的日常。</p>
-<h2 id="什麼是「程式系統產品」？"><a href="#什麼是「程式系統產品」？" class="headerlink" title="什麼是「程式系統產品」？"></a>什麼是「程式系統產品」？</h2><p>這一章提到了一個很有趣的概念，也是我很喜歡的一張圖（Figure 1.1），解釋了為什麼我們寫一個能跑的「程式」（Program），跟做出一個能賣的「程式系統產品」（Programming Systems Product），所需的成本會有 <strong>9 倍</strong> 的差距。</p>
-<ul>
-<li><strong>Program</strong>：你自己寫爽的，能在你的機器上跑，能在你的腦袋裡運作。成本：1x。</li>
-<li><strong>Programming Product（程式產品）</strong>：要通用化、要測試、要有文件。成本：3x。</li>
-<li><strong>Programming System（程式系統）</strong>：要跟別的元件介接、要遵守介面規範、要整合測試。成本：3x。</li>
-<li><strong>Programming Systems Product（程式系統產品）</strong>：<strong>也就是我們每天在做的事</strong>。既要通用化又要系統化。3x * 3x &#x3D; <strong>9x</strong>。</li>
-</ul>
-<p>很多時候老闆（或是我們自己）都會誤判，以為把一個 Prototype 變成產品很快。別傻了，那個 9 倍的坑就在那裡等著你。</p>
-<h2 id="為什麼我們還在這裡？"><a href="#為什麼我們還在這裡？" class="headerlink" title="為什麼我們還在這裡？"></a>為什麼我們還在這裡？</h2><p>既然是焦油坑，那為什麼我們這群工程師還前仆後繼地跳進去？Brooks 列出了這個職業的 <strong>樂趣（Joys）</strong> 與 <strong>苦惱（Woes）</strong>。</p>
-<h3 id="職業的樂趣"><a href="#職業的樂趣" class="headerlink" title="職業的樂趣"></a>職業的樂趣</h3><ol>
-<li><strong>純粹的創造</strong>：就像上帝創造世界一樣，我們創造事物。</li>
-<li><strong>對他人有用</strong>：做出來的東西是真的有人在用的。</li>
-<li><strong>魔術般的魅力</strong>：看著一行行程式碼變成會動的畫面，那種成就感無可比擬。</li>
-<li><strong>持續學習</strong>：這個領域永遠不會重複，永遠有新東西。（雖然有時候這也是一種這折磨…）</li>
-<li><strong>易於駕馭的介質</strong>：我們的畫布是記憶體，我們的畫筆是鍵盤，我們可以憑空蓋出城堡，不需要磚瓦。</li>
-</ol>
-<h3 id="職業的苦惱"><a href="#職業的苦惱" class="headerlink" title="職業的苦惱"></a>職業的苦惱</h3><ol>
-<li><strong>追求完美</strong>：電腦是無情的，少一個分號就是跑不動。我們必須強迫自己追求完美。</li>
-<li><strong>依賴他人</strong>：你的程式跑不對，可能是 OS 的鍋，可能是 Library 的雷，甚至可能是同事的 API 文件沒寫好（或是根本沒寫）。</li>
-<li><strong>枯燥的除錯</strong>：設計是有趣的，但抓 Bug 是線性的、甚至是指數級的痛苦。</li>
-<li><strong>產品過時</strong>：當你終於把產品做出來，它可能已經過時了。</li>
-</ol>
-<h2 id="結語"><a href="#結語" class="headerlink" title="結語"></a>結語</h2><p>雖然我們常抱怨 Requirements 一直改、在那邊解幾百年前的 Legacy Code、或是為了別人的 Bug 加班到半夜。但說實話，當我們看著系統成功上線，解決了用戶的問題，那種「<strong>我在焦油坑裡存活下來了</strong>」的快感，或許就是讓我們離不開這個行業的原因吧。</p>
-<p>我們都是在焦油坑裡掙扎的巨獸，但偶爾，我們也能爬上岸，享受一下陽光。</p>
-<p>這是我讀完第一章的小小心得，如果你也在焦油坑裡，別忘了，你並不孤單。</p>
-]]></content>
-      <categories>
-        <category>加減讀點書系列</category>
-      </categories>
-      <tags>
-        <tag>人月神話</tag>
-        <tag>讀書心得</tag>
-      </tags>
-  </entry>
-  <entry>
     <title>人月神話（二）：人月就是個謊言</title>
     <url>/2026/01/23/mythical-man-month-ch2/</url>
     <content><![CDATA[<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>這篇作者直接開門見山說：<strong>缺乏合理的時間進度，是造成專案延遲最主要的原因，比其他所有因素加起來的影響還大。</strong></p>
@@ -706,47 +655,35 @@
       </tags>
   </entry>
   <entry>
-    <title>N+1 Query Problem</title>
-    <url>/2024/07/17/n-plus-one-problem/</url>
-    <content><![CDATA[<h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>最近剛從 NET 6 跳來 Rails，免不了要踩到一些新手必踩的坑。像是這個 N+1 查詢問題就是很常見的坑…</p>
-<p>尤其對我這個用 EF 習慣的人，跳到 ActiveRecord 真的是各種不適應。不過不是不好用的不適應，而是那種方便到很沒有安全感的那種便利ＸＤ</p>
-<h1 id="問題描述"><a href="#問題描述" class="headerlink" title="問題描述"></a>問題描述</h1><blockquote>
-<p>假設你有一個 Customer 和他們的 Order 資料表。當你查詢 Customer 資料時，如果每個 Customer 都有多個 Order，而你同時查詢這些 Order，就會發生 N+1 的查詢問題。</p>
-</blockquote>
-<p>所以當你執行的一個查詢，實際上會有下面兩個動作：</p>
-<ol>
-<li>先執行一個查詢來取得所有 Customer。</li>
-<li>然後對<code>每個</code>Customer 執行一個查詢來取得該 Customer 的 Order。</li>
-</ol>
-<blockquote>
-<p>如果有 N 個 Customer，你將會執行 1 + N 個查詢，這會導致效能問題。</p>
-</blockquote>
-<p>簡單來說，N+1 查詢問題就是當你需要多次查詢資料庫才能取得完整資料時，會造成大量不必要的查詢，影響效能。</p>
-<h1 id="解決方法"><a href="#解決方法" class="headerlink" title="解決方法"></a>解決方法</h1><h2 id="includes"><a href="#includes" class="headerlink" title="includes"></a>includes</h2><div class="code-container" data-rel="Ruby"><figure class="iseeu highlight ruby"><table><tr><td class="code"><pre><span class="line"><span class="title class_">Customer</span>.includes(<span class="symbol">:orders</span>).all</span><br></pre></td></tr></table></figure></div>
-
-<p>把需要的資料一次撈出來，轉換成 SQL 語法的話就是使用了 IN (‘1’,’2’,’3’) 這樣的方式來一次性預先載入。避免重複向資料庫存取。</p>
-<h2 id="eager-load"><a href="#eager-load" class="headerlink" title="eager_load"></a>eager_load</h2><div class="code-container" data-rel="Ruby"><figure class="iseeu highlight ruby"><table><tr><td class="code"><pre><span class="line"><span class="title class_">Customer</span>.eager_load(<span class="symbol">:orders</span>).all</span><br></pre></td></tr></table></figure></div>
-
-<ol>
-<li>eager_load 強制使用 LEFT OUTER JOIN 來載入關聯資料。在一個查詢中同時載入主要資料和關聯資料。</li>
-<li>適合在需要對關聯資料進行條件篩選或排序時使用。</li>
-</ol>
-<h2 id="preload"><a href="#preload" class="headerlink" title="preload"></a>preload</h2><div class="code-container" data-rel="Ruby"><figure class="iseeu highlight ruby"><table><tr><td class="code"><pre><span class="line"><span class="title class_">Customer</span>.preload(<span class="symbol">:orders</span>).all</span><br></pre></td></tr></table></figure></div>
-
-<p>preload 強制使用多次查詢來載入關聯資料。它會先查詢主要資料，再查詢關聯資料，這樣可以避免 JOIN 查詢的開銷。<br>適合在不需要對關聯資料進行條件篩選時使用。</p>
-<p>上述提到的<code>多次查詢</code> 是會轉換成下面這樣的 SQL 語法：</p>
-<div class="code-container" data-rel="Sql"><figure class="iseeu highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="comment">-- 查詢顧客</span></span><br><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> customers;</span><br><span class="line"><span class="comment">-- 查詢所有相關顧客的訂單</span></span><br><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> orders <span class="keyword">WHERE</span> orders.customer_id <span class="keyword">IN</span> (<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, ...);</span><br></pre></td></tr></table></figure></div>
-
-<h1 id="總結"><a href="#總結" class="headerlink" title="總結"></a>總結</h1><p>一般來說都是直接選擇使用<code>includes</code>，因為 includes 會選擇最優的查詢策略。它會根據上下文決定是使用單獨查詢還是 JOIN 查詢。</p>
-<p>當只讀取資料而沒有條件篩選時，通常會進行兩次查詢（preload）。</p>
-<p>當涉及條件篩選並需要 JOIN 查詢時，它會自動使用 LEFT OUTER JOIN（eager_load）。</p>
+    <title>人月神話（三）：為什麼軟體開發不能講民主？</title>
+    <url>/2026/01/29/mythical-man-month-ch4/</url>
+    <content><![CDATA[<p>這篇〈貴族專制、民主政治與系統設計〉標題看起來很硬，充滿了 70 年代的古早味，但它其實探討了軟體開發中一個非常核心、甚至有點政治不正確的觀點：「民主」在設計系統時是行不通的。</p>
+<p>這一章的核心邏輯，其實用現代開發的角度來看意外地精準。</p>
+<h2 id="核心重點"><a href="#核心重點" class="headerlink" title="核心重點"></a>核心重點</h2><p>這是整本書最重要的概念之一。作者認為一個系統如果要好用，必須像是「由同一個人設計出來的」。</p>
+<p>試想一下，如果十個工程師每個人都把自己覺得很酷的功能加進去，這個軟體最後就會變成一個四不像的縫合怪。使用者會覺得很混亂，因為 A 功能的操作邏輯和 B 功能完全不同。</p>
+<p>所以作者主張：與其要一個擁有大量好點子但混亂的系統，不如要一個設計統一但功能普通的系統。</p>
+<h2 id="貴族專制與慣老闆？"><a href="#貴族專制與慣老闆？" class="headerlink" title="貴族專制與慣老闆？"></a>貴族專制與慣老闆？</h2><p>如核心重點所陳述，作者提出了一個很極端的解法：設計權必須掌握在極少數人手裡，也就是所謂的貴族專制。</p>
+<p>這會引發一個很大的矛盾：</p>
+<p><strong>貴族（架構師）</strong>： 負責決定系統長什麼樣子、做什麼事。</p>
+<p><strong>平民（實作者）</strong>： 只能決定怎麼做出來，不能決定要做什麼。</p>
+<p>這聽起來超像慣老闆在壓榨員工對吧？讀者讀到這裡通常會很不爽，覺得自己變成了寫 Code 的機器，沒有創意空間。所以作者花了很多篇幅在解釋為什麼這不是壞事。</p>
+<h2 id="現代觀點解讀"><a href="#現代觀點解讀" class="headerlink" title="現代觀點解讀"></a>現代觀點解讀</h2><p>這一章提到的角色與衝突，完全可以對應到現代軟體開發的常見職位。</p>
+<p>作者所謂的架構師，其實就是現在負責寫 PRD 和定義 API 介面的 PM 或技術主管。他的工作是對使用者負責，告訴工程師使用者看到的是什麼。產品的規格不能讓工程師一人一句投票決定，必須由少數人拍板定案，產品才會有靈魂。</p>
+<p>而實作者就是軟體工程師。我們的工作是對機器負責，想辦法把規格用最高效、最穩定的程式碼寫出來。</p>
+<h2 id="為什麼「專制」對工程師反而是好事？"><a href="#為什麼「專制」對工程師反而是好事？" class="headerlink" title="為什麼「專制」對工程師反而是好事？"></a>為什麼「專制」對工程師反而是好事？</h2><p>這章最難懂也最精彩的地方，在於安撫工程師的論點。</p>
+<p>首先，「怎麼做」其實比「做什麼」更難。架構師雖然決定了要蓋一座橋，但工程師要決定怎麼在不倒塌的情況下把橋蓋起來。技術實作本身的創意空間是非常巨大的，不需要去搶設計產品的創意。</p>
+<p>其次，規格定死了，反而比較好做事。</p>
+<p>如果你是工程師，應該遇過需求一直變的狀況。作者認為，架構師把規格定得越死，工程師反而越自由。因為你可以專心鑽研技術，不用擔心明天 PM 又改需求。</p>
+<h2 id="總結"><a href="#總結" class="headerlink" title="總結"></a>總結</h2><p>這章其實是在講分工的哲學。</p>
+<p>軟體設計拒絕民主，為了讓軟體好用，產品規格必須由極少數人獨裁決定，才能保證風格統一。但工程師的創意應該發揮在「如何優雅地實現功能」，而不是去改動產品設計。</p>
+<p>簡單來說：PM 把需求講清楚，不要讓工程師猜；工程師把 Code 寫漂亮，不要去亂改需求。這才是效率最高的開發模式。</p>
 ]]></content>
       <categories>
-        <category>RubyOnRails</category>
+        <category>加減讀點書系列</category>
       </categories>
       <tags>
-        <tag>RubyOnRails</tag>
-        <tag>ActiveRecord</tag>
+        <tag>人月神話</tag>
+        <tag>讀書心得</tag>
       </tags>
   </entry>
   <entry>
@@ -834,7 +771,7 @@
                       alt="error"
                 ></p>
 <p>可以看到確實出現了 <code>ONLY_FULL_GROUP_BY</code> 的設定，也就是這個設定導致很多語法都無法『正常』執行。因此我們需要把它關閉。</p>
-<h2 id="關閉ONLY-FULL-GROUP-BY"><a href="#關閉ONLY-FULL-GROUP-BY" class="headerlink" title="關閉ONLY_FULL_GROUP_BY"></a>關閉<code>ONLY_FULL_GROUP_BY</code></h2><p>如果是 homebrew 安裝的 <a class="link"   href="mailto:&#109;&#121;&#115;&#113;&#108;&#x40;&#53;&#46;&#x37;" >&#109;&#121;&#115;&#113;&#108;&#x40;&#53;&#46;&#x37;<i class="fa-solid fa-arrow-up-right ml-[0.2em] font-light align-text-top text-[0.7em] link-icon"></i></a> 路徑，需編輯<code>/opt/homebrew/etc/my.cnf</code> 這個設定檔。並在裡面加入你需要開啟的 sql_mode。否則用下語法的方式每次重啟 mysql 都會恢復到預設設定。</p>
+<h2 id="關閉ONLY-FULL-GROUP-BY"><a href="#關閉ONLY-FULL-GROUP-BY" class="headerlink" title="關閉ONLY_FULL_GROUP_BY"></a>關閉<code>ONLY_FULL_GROUP_BY</code></h2><p>如果是 homebrew 安裝的 <a class="link"   href="mailto:&#109;&#121;&#x73;&#113;&#x6c;&#x40;&#53;&#46;&#55;" >&#109;&#121;&#x73;&#113;&#x6c;&#x40;&#53;&#46;&#55;<i class="fa-solid fa-arrow-up-right ml-[0.2em] font-light align-text-top text-[0.7em] link-icon"></i></a> 路徑，需編輯<code>/opt/homebrew/etc/my.cnf</code> 這個設定檔。並在裡面加入你需要開啟的 sql_mode。否則用下語法的方式每次重啟 mysql 都會恢復到預設設定。</p>
 <p>準備把下面這段設定貼到 config 中</p>
 <blockquote>
 <p><code>sql_mode = &quot;STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION”</code></p>
@@ -859,6 +796,57 @@
         <tag>RubyOnRails</tag>
         <tag>ActiveRecord</tag>
         <tag>MySql</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>人月神話（一）：我們都在焦油坑裡掙扎嗎？</title>
+    <url>/2026/01/23/mythical-man-month-ch1/</url>
+    <content><![CDATA[<p><img  
+                     lazyload
+                     src="/images/loading.svg"
+                     data-src="/../Images-Posts/mythical-man-month/effor-program-product-1.png"
+                      alt="Tar Pit"
+                ></p>
+<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>最近翻 linkedin 剛好看到有人推薦這本書：<strong>《人月神話》（The Mythical Man-Month）</strong>。</p>
+<p>問一問才發現原來這本書是號稱軟體工程界的聖經，所以想了想還是要撥點時間看吧？也許能給現在的自己有些什麼啟發。</p>
+<p>那就開啟了不知道會不會寫完的這本書的讀書心得吧…</p>
+<hr>
+<p>第一章的標題：<strong>焦油坑（The Tar Pit）</strong>。</p>
+<p>作者 Fred Brooks 引用了史前巨獸在焦油坑掙扎的場景：恐龍、猛獁象、劍齒虎，這些強大的生物在焦油中掙扎，越是猛烈，纏得越緊。最後，沒有誰能逃脫。</p>
+<p>但我們是人，我們可能會享受這個掙扎的過程。因為快樂總是伴隨著苦痛，而煩惱即是菩提。我們總在焦油坑裡掙扎，但偶爾，我們也能爬上岸，享受一下陽光。</p>
+<p>而這，就是開發的日常。</p>
+<h2 id="什麼是「程式系統產品」？"><a href="#什麼是「程式系統產品」？" class="headerlink" title="什麼是「程式系統產品」？"></a>什麼是「程式系統產品」？</h2><p>這一章提到了一個很有趣的概念，也是我很喜歡的一張圖（Figure 1.1），解釋了為什麼我們寫一個能跑的「程式」（Program），跟做出一個能賣的「程式系統產品」（Programming Systems Product），所需的成本會有 <strong>9 倍</strong> 的差距。</p>
+<ul>
+<li><strong>Program</strong>：你自己寫爽的，能在你的機器上跑，能在你的腦袋裡運作。成本：1x。</li>
+<li><strong>Programming Product（程式產品）</strong>：要通用化、要測試、要有文件。成本：3x。</li>
+<li><strong>Programming System（程式系統）</strong>：要跟別的元件介接、要遵守介面規範、要整合測試。成本：3x。</li>
+<li><strong>Programming Systems Product（程式系統產品）</strong>：<strong>也就是我們每天在做的事</strong>。既要通用化又要系統化。3x * 3x &#x3D; <strong>9x</strong>。</li>
+</ul>
+<p>很多時候老闆（或是我們自己）都會誤判，以為把一個 Prototype 變成產品很快。別傻了，那個 9 倍的坑就在那裡等著你。</p>
+<h2 id="為什麼我們還在這裡？"><a href="#為什麼我們還在這裡？" class="headerlink" title="為什麼我們還在這裡？"></a>為什麼我們還在這裡？</h2><p>既然是焦油坑，那為什麼我們這群工程師還前仆後繼地跳進去？Brooks 列出了這個職業的 <strong>樂趣（Joys）</strong> 與 <strong>苦惱（Woes）</strong>。</p>
+<h3 id="職業的樂趣"><a href="#職業的樂趣" class="headerlink" title="職業的樂趣"></a>職業的樂趣</h3><ol>
+<li><strong>純粹的創造</strong>：就像上帝創造世界一樣，我們創造事物。</li>
+<li><strong>對他人有用</strong>：做出來的東西是真的有人在用的。</li>
+<li><strong>魔術般的魅力</strong>：看著一行行程式碼變成會動的畫面，那種成就感無可比擬。</li>
+<li><strong>持續學習</strong>：這個領域永遠不會重複，永遠有新東西。（雖然有時候這也是一種這折磨…）</li>
+<li><strong>易於駕馭的介質</strong>：我們的畫布是記憶體，我們的畫筆是鍵盤，我們可以憑空蓋出城堡，不需要磚瓦。</li>
+</ol>
+<h3 id="職業的苦惱"><a href="#職業的苦惱" class="headerlink" title="職業的苦惱"></a>職業的苦惱</h3><ol>
+<li><strong>追求完美</strong>：電腦是無情的，少一個分號就是跑不動。我們必須強迫自己追求完美。</li>
+<li><strong>依賴他人</strong>：你的程式跑不對，可能是 OS 的鍋，可能是 Library 的雷，甚至可能是同事的 API 文件沒寫好（或是根本沒寫）。</li>
+<li><strong>枯燥的除錯</strong>：設計是有趣的，但抓 Bug 是線性的、甚至是指數級的痛苦。</li>
+<li><strong>產品過時</strong>：當你終於把產品做出來，它可能已經過時了。</li>
+</ol>
+<h2 id="結語"><a href="#結語" class="headerlink" title="結語"></a>結語</h2><p>雖然我們常抱怨 Requirements 一直改、在那邊解幾百年前的 Legacy Code、或是為了別人的 Bug 加班到半夜。但說實話，當我們看著系統成功上線，解決了用戶的問題，那種「<strong>我在焦油坑裡存活下來了</strong>」的快感，或許就是讓我們離不開這個行業的原因吧。</p>
+<p>我們都是在焦油坑裡掙扎的巨獸，但偶爾，我們也能爬上岸，享受一下陽光。</p>
+<p>這是我讀完第一章的小小心得，如果你也在焦油坑裡，別忘了，你並不孤單。</p>
+]]></content>
+      <categories>
+        <category>加減讀點書系列</category>
+      </categories>
+      <tags>
+        <tag>人月神話</tag>
+        <tag>讀書心得</tag>
       </tags>
   </entry>
   <entry>
@@ -906,6 +894,50 @@
       </categories>
       <tags>
         <tag>心法</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>N+1 Query Problem</title>
+    <url>/2024/07/17/n-plus-one-problem/</url>
+    <content><![CDATA[<h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>最近剛從 NET 6 跳來 Rails，免不了要踩到一些新手必踩的坑。像是這個 N+1 查詢問題就是很常見的坑…</p>
+<p>尤其對我這個用 EF 習慣的人，跳到 ActiveRecord 真的是各種不適應。不過不是不好用的不適應，而是那種方便到很沒有安全感的那種便利ＸＤ</p>
+<h1 id="問題描述"><a href="#問題描述" class="headerlink" title="問題描述"></a>問題描述</h1><blockquote>
+<p>假設你有一個 Customer 和他們的 Order 資料表。當你查詢 Customer 資料時，如果每個 Customer 都有多個 Order，而你同時查詢這些 Order，就會發生 N+1 的查詢問題。</p>
+</blockquote>
+<p>所以當你執行的一個查詢，實際上會有下面兩個動作：</p>
+<ol>
+<li>先執行一個查詢來取得所有 Customer。</li>
+<li>然後對<code>每個</code>Customer 執行一個查詢來取得該 Customer 的 Order。</li>
+</ol>
+<blockquote>
+<p>如果有 N 個 Customer，你將會執行 1 + N 個查詢，這會導致效能問題。</p>
+</blockquote>
+<p>簡單來說，N+1 查詢問題就是當你需要多次查詢資料庫才能取得完整資料時，會造成大量不必要的查詢，影響效能。</p>
+<h1 id="解決方法"><a href="#解決方法" class="headerlink" title="解決方法"></a>解決方法</h1><h2 id="includes"><a href="#includes" class="headerlink" title="includes"></a>includes</h2><div class="code-container" data-rel="Ruby"><figure class="iseeu highlight ruby"><table><tr><td class="code"><pre><span class="line"><span class="title class_">Customer</span>.includes(<span class="symbol">:orders</span>).all</span><br></pre></td></tr></table></figure></div>
+
+<p>把需要的資料一次撈出來，轉換成 SQL 語法的話就是使用了 IN (‘1’,’2’,’3’) 這樣的方式來一次性預先載入。避免重複向資料庫存取。</p>
+<h2 id="eager-load"><a href="#eager-load" class="headerlink" title="eager_load"></a>eager_load</h2><div class="code-container" data-rel="Ruby"><figure class="iseeu highlight ruby"><table><tr><td class="code"><pre><span class="line"><span class="title class_">Customer</span>.eager_load(<span class="symbol">:orders</span>).all</span><br></pre></td></tr></table></figure></div>
+
+<ol>
+<li>eager_load 強制使用 LEFT OUTER JOIN 來載入關聯資料。在一個查詢中同時載入主要資料和關聯資料。</li>
+<li>適合在需要對關聯資料進行條件篩選或排序時使用。</li>
+</ol>
+<h2 id="preload"><a href="#preload" class="headerlink" title="preload"></a>preload</h2><div class="code-container" data-rel="Ruby"><figure class="iseeu highlight ruby"><table><tr><td class="code"><pre><span class="line"><span class="title class_">Customer</span>.preload(<span class="symbol">:orders</span>).all</span><br></pre></td></tr></table></figure></div>
+
+<p>preload 強制使用多次查詢來載入關聯資料。它會先查詢主要資料，再查詢關聯資料，這樣可以避免 JOIN 查詢的開銷。<br>適合在不需要對關聯資料進行條件篩選時使用。</p>
+<p>上述提到的<code>多次查詢</code> 是會轉換成下面這樣的 SQL 語法：</p>
+<div class="code-container" data-rel="Sql"><figure class="iseeu highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="comment">-- 查詢顧客</span></span><br><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> customers;</span><br><span class="line"><span class="comment">-- 查詢所有相關顧客的訂單</span></span><br><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> orders <span class="keyword">WHERE</span> orders.customer_id <span class="keyword">IN</span> (<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, ...);</span><br></pre></td></tr></table></figure></div>
+
+<h1 id="總結"><a href="#總結" class="headerlink" title="總結"></a>總結</h1><p>一般來說都是直接選擇使用<code>includes</code>，因為 includes 會選擇最優的查詢策略。它會根據上下文決定是使用單獨查詢還是 JOIN 查詢。</p>
+<p>當只讀取資料而沒有條件篩選時，通常會進行兩次查詢（preload）。</p>
+<p>當涉及條件篩選並需要 JOIN 查詢時，它會自動使用 LEFT OUTER JOIN（eager_load）。</p>
+]]></content>
+      <categories>
+        <category>RubyOnRails</category>
+      </categories>
+      <tags>
+        <tag>RubyOnRails</tag>
+        <tag>ActiveRecord</tag>
       </tags>
   </entry>
 </search>
